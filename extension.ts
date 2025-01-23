@@ -24,7 +24,9 @@ function activate(context: vscode.ExtensionContext): void {
 
 	// 读取position
 	position = context.globalState.get("position", 0);
-	
+
+    hide = false;
+
 	// 保证父目录存在
 	try {
 		fse.accessSync(cacheFolder);
@@ -92,13 +94,13 @@ function activate(context: vscode.ExtensionContext): void {
 				position = 0;
 				context.globalState.update("position", position);
 				readingFile = fse.openSync(cacheFile, 'r');
-				
+
 				vscode.window.showInformationMessage('读取执行完毕');
 			}
 		});
 	}
 
-	var text: string="";
+	var text: string = "";
 	// 从缓存读取所需内容
 	function Read(): string {
 		if (readingFile === undefined) {
@@ -129,7 +131,7 @@ function activate(context: vscode.ExtensionContext): void {
 
 			// 处理换行符
 			const newlineIndex = readText.indexOf('\n');// 寻找换行符
-			
+
 			// 是否存在换行符
 			if (newlineIndex !== -1) {
 				text = readText.slice(0, newlineIndex);
@@ -204,13 +206,16 @@ function activate(context: vscode.ExtensionContext): void {
 	}
 
 	function f_init(): void {
+		hide = false;
 		WorkInit();
 	}
 	function f_next(): void {
+		hide = false;
 		CheckCache();
 		WorkNext();
 	}
 	function f_last(): void {
+		hide = false;
 		CheckCache();
 		WorkLast();
 	}
@@ -220,7 +225,7 @@ function activate(context: vscode.ExtensionContext): void {
 	function f_hide(): void {
 		if (hide === false) {
 			Write("");
-			hide=true;
+			hide = true;
 		} else {
 			hide = false;
 			Write(text);
@@ -232,7 +237,7 @@ function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.next', f_next));
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.last', f_last));
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', f_hide));
-	
+
 	// 检查配置版本
 	let ConfigVersionTag: number = context.globalState.get("ConfigVersionTag", 1);
 	if (ConfigVersionTag < 2) {
@@ -245,16 +250,16 @@ function activate(context: vscode.ExtensionContext): void {
 		if (ConfigVersionTag === 1) {
 			let text1 = fse.readFileSync(cacheFolder + "txtfile1", 'utf8') + fse.readFileSync(cacheFolder + "txtfile2", 'utf8');
 			let text2 = fse.readFileSync(cacheFolder + "txtfile3", 'utf8');
-			
+
 			let text: string = text1 + text2;
-			
+
 			Buffer.from(text, 'binary')
 			fse.writeFileSync(cacheFile, iconv.encode(text, 'utf32le'));
 
 			position = text1.length;
 			context.globalState.update("position", position);
 			readingFile = fse.openSync(cacheFile, 'r');
-			
+
 			vscode.window.showInformationMessage('配置版本更新完成: 1 -> 2');
 		}
 		context.globalState.update("ConfigVersionTag", 2);
