@@ -25,7 +25,7 @@ const long long infll = 0x3f3f3f3f3f3f3f3f;
 
 void work()
 {
-    /// 敬告：请在下载后的24小时内删除，同时不
+    /// 途。书名：三国演义作者：罗贯中章节数：1
 }
 
 signed main()

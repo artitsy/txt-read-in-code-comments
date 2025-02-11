@@ -171,7 +171,7 @@ function activate(context: vscode.ExtensionContext): void {
 			return readText;
 		} catch (err) {
 			console.log(err);
-			
+
 		} finally {
 			context.globalState.update("position", position);
 		}
@@ -235,6 +235,33 @@ function activate(context: vscode.ExtensionContext): void {
 
 	}
 
+	function WorkTurn(): void {
+		vscode.window.showInputBox(
+			{
+				prompt: '请输入跳转页数（当前第 ' + position.toString() + ' 页，共 ' + totalLine.toString() + ' 页）',
+				placeHolder: '1~' + totalLine.toString(),
+				validateInput: (res) => {
+					if (isNaN(Number(res))) {
+						return '输入不是数字'
+					}
+					let page = Number(res);
+					if (page < 1 || page > totalLine) {
+						return '范围不合法'
+					}
+					return null;
+				},
+			}
+		).then((turnPage) => {
+			// console.log(turnPage);
+			if (isNaN(Number(turnPage))) {
+				vscode.window.showInformationMessage('取消跳转');
+				return;
+			}
+			position = Number(turnPage);
+			Write();
+		});
+	}
+
 	function f_init(): void {
 		WorkInit();
 	}
@@ -245,6 +272,10 @@ function activate(context: vscode.ExtensionContext): void {
 	function f_last(): void {
 		CheckCache();
 		WorkLast();
+	}
+	function f_turn(): void {
+		CheckCache();
+		WorkTurn();
 	}
 
 	// 老板键
@@ -264,6 +295,7 @@ function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.next', f_next));
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.last', f_last));
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', f_hide));
+	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', f_turn));
 
 	// 检查配置版本
 	let ConfigVersionTag: number = context.globalState.get("ConfigVersionTag", 1);
