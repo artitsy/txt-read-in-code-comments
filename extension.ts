@@ -25,9 +25,13 @@ function activate(context: vscode.ExtensionContext): void {
 
 	// 读取position
 	position = context.globalState.get("position", 0);
+  
+  hide = false;
+  
 	// 读取totalline
 	totalLine = context.globalState.get("totalLine", 0);
-
+  
+  
 	// 保证父目录存在
 	try {
 		fse.accessSync(cacheFolder);
@@ -148,6 +152,7 @@ function activate(context: vscode.ExtensionContext): void {
 
 			let readText: string = iconv.decode(buffer, 'utf32le');
 
+
 			return readText;
 		} catch (err) {
 			console.log(err);
@@ -243,13 +248,16 @@ function activate(context: vscode.ExtensionContext): void {
 	}
 
 	function f_init(): void {
+		hide = false;
 		WorkInit();
 	}
 	function f_next(): void {
+		hide = false;
 		CheckCache();
 		WorkNext();
 	}
 	function f_last(): void {
+		hide = false;
 		CheckCache();
 		WorkLast();
 	}
