@@ -143,30 +143,10 @@ function activate(context: vscode.ExtensionContext): void {
 			}
 			const stats: fse.Stats = fse.statSync(cacheFile);
 
-
-			// let length = Math.min(config.wordslimit + 1, stats.size / 4 - position);// 计算需要读取长度
 			let buffer = Buffer.alloc(config.wordslimit * 4, 0);
 			fse.readSync(readingFile, buffer, 0, config.wordslimit * 4, (position - 1) * config.wordslimit * 4);
 
-			// let length = Math.min(config.wordslimit + 1, stats.size / 4 - position);// 计算需要读取长度
-			// let buffer = Buffer.alloc(length * 4, 0);
-			// length = fse.readSync(readingFile, buffer, 0, length * 4, position * 4) / 4;
-
-			// let readText: string = iconv.decode(buffer, 'utf32le');
-
 			let readText: string = iconv.decode(buffer, 'utf32le');
-
-			// // 处理换行符
-			// const newlineIndex = readText.indexOf('\n');// 寻找换行符
-
-			// // 是否存在换行符
-			// if (newlineIndex !== -1) {
-			// 	text = readText.slice(0, newlineIndex);
-			// 	position += newlineIndex + 1;
-			// } else {
-			// 	text = readText.slice(0, length - 1);
-			// 	position += length - 1;
-			// }
 
 			return readText;
 		} catch (err) {
