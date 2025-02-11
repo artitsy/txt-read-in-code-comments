@@ -10,6 +10,7 @@ var cacheFolder: string; // 缓存根目录
 var cacheFile: string; // 缓存
 var position: number;
 var readingFile: number; // 句柄
+var totalLine: number; // 总行数
 
 function activate(context: vscode.ExtensionContext): void {
 	// 极端错误处理
@@ -24,9 +25,13 @@ function activate(context: vscode.ExtensionContext): void {
 
 	// 读取position
 	position = context.globalState.get("position", 0);
-
-    hide = false;
-
+  
+  hide = false;
+  
+	// 读取totalline
+	totalLine = context.globalState.get("totalLine", 0);
+  
+  
 	// 保证父目录存在
 	try {
 		fse.accessSync(cacheFolder);
@@ -61,7 +66,7 @@ function activate(context: vscode.ExtensionContext): void {
 				} catch (err) {
 					if (err) {
 						vscode.window.showErrorMessage('文件不存在或不可读！');
-						console.error(`${frmfile} ${err.code === 'ENOENT' ? '不存在' : '只可读'}`);
+						console.error(`${frmfile} ${err.code === 'ENOENT' ? '不存在' : '不可读'}`);
 					}
 				}
 				let buffer: Buffer = fse.readFileSync(frmfile);
@@ -87,12 +92,32 @@ function activate(context: vscode.ExtensionContext): void {
 				text = text.replace(/\n\n+/g, "\n");
 				text = text.substring(1);
 
+				let config = ReadConfig();
+				let wl = config.wordslimit;
+				let tokens: string[] = text.split('\n');
+				let pt = 0;
+
+				text = '';
+				for (const token of tokens) {
+					for (let i = 0; i < token.length; i += wl) {
+						let singlePage = token.slice(i, i + wl);
+						let l = singlePage.length;
+						for (let i = l; i < wl; i++) {
+							singlePage += ' ';
+						}
+						text += singlePage;
+						pt++;
+					}
+				}
+
 				Buffer.from(text, 'binary')
 				fse.writeFileSync(cacheFile, iconv.encode(text, 'utf32le'));
 
 				// 初始化指针为0
 				position = 0;
 				context.globalState.update("position", position);
+				context.globalState.update("totalLine", pt);
+
 				readingFile = fse.openSync(cacheFile, 'r');
 
 				vscode.window.showInformationMessage('读取执行完毕');
@@ -110,38 +135,28 @@ function activate(context: vscode.ExtensionContext): void {
 			let config: ConfigType = ReadConfig();
 
 			// 检查文件是否读取完/读到头
-			const stats: fse.Stats = fse.statSync(cacheFile);
-			if (position >= stats.size / 4) {
-				position = stats.size / 4;
-				vscode.window.showInformationMessage(`读完了呢。`);
-				return "-- END --";
-			}
-			if (position < 0) {
+			if (position <= 0) {
 				position = 0;
 				vscode.window.showInformationMessage(`到头了呢。`);
 				return "-- BEGIN --";
 			}
+			if (position > totalLine) {
+				position = totalLine + 1;
+				vscode.window.showInformationMessage(`读完了呢。`);
+				return "-- END --";
+			}
+			const stats: fse.Stats = fse.statSync(cacheFile);
 
-
-			let length = Math.min(config.wordslimit + 1, stats.size / 4 - position);// 计算需要读取长度
-			let buffer = Buffer.alloc(length * 4, 0);
-			length = fse.readSync(readingFile, buffer, 0, length * 4, position * 4) / 4;
+			let buffer = Buffer.alloc(config.wordslimit * 4, 0);
+			fse.readSync(readingFile, buffer, 0, config.wordslimit * 4, (position - 1) * config.wordslimit * 4);
 
 			let readText: string = iconv.decode(buffer, 'utf32le');
 
-			// 处理换行符
-			const newlineIndex = readText.indexOf('\n');// 寻找换行符
 
-			// 是否存在换行符
-			if (newlineIndex !== -1) {
-				text = readText.slice(0, newlineIndex);
-				position += newlineIndex + 1;
-			} else {
-				text = readText.slice(0, length - 1);
-				position += length - 1;
-			}
+			return readText;
+		} catch (err) {
+			console.log(err);
 
-			return text;
 		} finally {
 			context.globalState.update("position", position);
 		}
@@ -181,13 +196,13 @@ function activate(context: vscode.ExtensionContext): void {
 
 	// 显示下一句
 	async function WorkNext(): Promise<void> {
+		position++;
 		Write();
 	}
 
 	//显示上一句
 	async function WorkLast(): Promise<void> {
-		let config = ReadConfig();
-		position -= config.wordslimit * 2;
+		position--;
 		Write();
 	}
 
@@ -205,6 +220,33 @@ function activate(context: vscode.ExtensionContext): void {
 
 	}
 
+	function WorkTurn(): void {
+		vscode.window.showInputBox(
+			{
+				prompt: '请输入跳转页数（当前第 ' + position.toString() + ' 页，共 ' + totalLine.toString() + ' 页）',
+				placeHolder: '1~' + totalLine.toString(),
+				validateInput: (res) => {
+					if (isNaN(Number(res))) {
+						return '输入不是数字'
+					}
+					let page = Number(res);
+					if (page < 1 || page > totalLine) {
+						return '范围不合法'
+					}
+					return null;
+				},
+			}
+		).then((turnPage) => {
+			// console.log(turnPage);
+			if (isNaN(Number(turnPage))) {
+				vscode.window.showInformationMessage('取消跳转');
+				return;
+			}
+			position = Number(turnPage);
+			Write();
+		});
+	}
+
 	function f_init(): void {
 		hide = false;
 		WorkInit();
@@ -218,6 +260,10 @@ function activate(context: vscode.ExtensionContext): void {
 		hide = false;
 		CheckCache();
 		WorkLast();
+	}
+	function f_turn(): void {
+		CheckCache();
+		WorkTurn();
 	}
 
 	// 老板键
@@ -237,6 +283,7 @@ function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.next', f_next));
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.last', f_last));
 	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', f_hide));
+	context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', f_turn));
 
 	// 检查配置版本
 	let ConfigVersionTag: number = context.globalState.get("ConfigVersionTag", 1);
