@@ -98,10 +98,10 @@ function activate(context: vscode.ExtensionContext): void {
 					for (let i = 0; i < token.length; i += wl) {
 						let singlePage = token.slice(i, i + wl);
 						let l = singlePage.length;
-						for (let i = 0; i < l; i++) {
+						for (let i = l; i < wl; i++) {
 							singlePage += ' ';
 						}
-						text += token.slice(i, i + wl);
+						text += singlePage;
 						pt++;
 					}
 				}

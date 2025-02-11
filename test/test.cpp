@@ -25,7 +25,7 @@ const long long infll = 0x3f3f3f3f3f3f3f3f;
 
 void work()
 {
-    /// 途。书名：三国演义作者：罗贯中章节数：1
+    /// 。建宁四年二月，洛阳地震；又海水泛溢，沿
 }
 
 signed main()
