@@ -67,37 +67,7 @@
 				"command": "txt-read-in-code-comments.turn",
 				"key": "Alt+t"
 			}
-		],
-		"configuration": {
-			"title": "TXT Read in Code Comments",
-			"properties": {
-				"txt-read-in-code-comments.Sign": {
-					"type": "object",
-					"default": {
-						"cpp": {
-							"a": "/// ",
-							"b": {
-								"pre": "/*> ",
-								"suf": " <*/"
-							}
-						},
-						"default": {
-							"a": "/// ",
-							"b": {
-								"pre": "/*> ",
-								"suf": " <*/"
-							}
-						}
-					},
-					"description": "设置阅读标识符"
-				},
-				"txt-read-in-code-comments.WordsLimit": {
-					"type": "number",
-					"default": 20,
-					"description": "设置最多单行显示字数"
-				}
-			}
-		}
+		]
 	},
 	"scripts": {
 		"check": "eslint .",
