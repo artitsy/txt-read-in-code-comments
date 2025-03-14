@@ -3,6 +3,9 @@ import * as vscode from 'vscode';
 import * as chardet from 'chardet';
 import * as iconv from 'iconv-lite';
 
+import { Configr } from './configr';
+import { formatText } from './string';
+
 var cacheFolder: string;    // 缓存文件 根目录
 var cacheFile: string;      // 缓存文件 路径  cacheFolder + "cacheFile"
 var readingFile: number;    // 缓存文件 句柄
@@ -10,113 +13,8 @@ var position: number;       // 读到位置
 var text: string;           // 在读文本
 var hide: boolean;          // 老板键 隐藏状态
 
-//*//   配置管理  todo: 配置修改
-class Configr {
-    
-    context: vscode.ExtensionContext;
-    
-    constructor(context: vscode.ExtensionContext) {
-        this.context = context;
-    }
-    
-    
-    GetEditor(): vscode.TextEditor {
-        let editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            //vscode.window.showErrorMessage('不在活动的编辑器中');
-            throw new Error('不在活动的编辑器中');
-        }
-        return editor;
-    }
-    
-    GetLang(): string {
-        return this.GetEditor().document.languageId;
-    }
-    
-    GetWordsLimit(): number {
-        return this.context.globalState.get("WordsLimit");
-    }
-    
-    GetSign(): string { 
-        let sign:string = this.context.globalState.get("Sign-" + this.GetLang());
-        if (!sign) {
-            sign = this.context.globalState.get("Sign-default");
-        }
-        return sign;
-    }
-    
-    GetPosition(): number {
-        return this.context.globalState.get("position");
-    }
-    
-    GetConfigVersionTag(): number {
-        return this.context.globalState.get("ConfigVersionTag", 0);
-    }
-    
-    GettotalLine(): number {
-        return this.context.globalState.get("totalLine");
-    }
-    
-    SetWordsLimit(limit: number): void {
-        this.context.globalState.update("WordsLimit", limit);
-    }
-    
-    SetSign(lang: string, sign: string): void {
-        this.context.globalState.update("Sign-" + lang, sign);
-    }
-    
-    SetPosition(position: number): void {
-        this.context.globalState.update("position", position);
-    }
-    
-    SetConfigVersionTag(tag: number): void {
-        this.context.globalState.update("ConfigVersionTag", tag);
-    }
-    
-    SettotalLine(totalLine: number): void {
-        this.context.globalState.update("totalLine", totalLine);
-    }
-};
-//*//   
 var configr: Configr;
 
-//*//   文本处理
-
-// 检查一个字符是否为标点符号
-function isPunctuation(char: string): boolean {
-    return /[，。！？；：”’】》）、,.!?;:'"\]\)>\}]/.test(char);
-}
-
-// 格式化文本
-function formatText(OriginalText: string, WordsLimit: number): string {
-    let lines: string[] = 
-        ("\n" + OriginalText.replaceAll("\r", "\n") + "\n")
-        .replace(/\n\n+/g, "\n")
-        .slice(1, -1)
-        .split("\n");
-    
-    let text: string = "";
-    
-    for (const line of lines) {
-        let i = 0;
-        for (; i + WordsLimit < line.length; i += WordsLimit) {
-            let sentence = line.slice(i, i + WordsLimit + 1);
-            if (!isPunctuation(sentence.slice(-1))) {
-                sentence = sentence.slice(0, -1) + '\u{F8888}';
-            } else {
-                ++ i;
-            }
-            text += sentence;
-        }
-        if (i < line.length) {
-            text += line.slice(i) + '\u{F8888}'.repeat(i + WordsLimit + 1 - line.length);
-        }
-    }
-    return text;
-}
-//*//   
-
-//*//   主要功能函数
 function WorkInit(): void {
     vscode.window.showOpenDialog({
         canSelectFiles: true,
@@ -324,17 +222,6 @@ function CheckConfigVersion() {
     }
 }
 //*//
-
-//function CheckCache(): void {       todo: 等throw error了再处理
-    //try {
-    //    fse.accessSync(cacheFile, fse.constants.F_OK | fse.constants.W_OK);
-    //} catch (err) {
-    //    if (err) {
-    //        WorkInit();
-    //    }
-    //    return;
-    //}
-//}
 
 //*//   入口函数
 function activate(context: vscode.ExtensionContext): void {
