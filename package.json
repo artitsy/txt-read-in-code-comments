@@ -40,7 +40,11 @@
 			{
 				"command": "txt-read-in-code-comments.turn",
 				"title": "read.turn"
-			}
+			},
+            {
+                "command": "txt-read-in-code-comments.settings",
+                "title": "read.settings"
+            }
 		],
 		"keybindings": [
 			{

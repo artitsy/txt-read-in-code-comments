@@ -1,19 +1,27 @@
 import fse = require('fs-extra');
 import * as vscode from 'vscode';
-import * as chardet from 'chardet';
-import * as iconv from 'iconv-lite';
 
+import { ErrorType } from './error';
 import { Configr } from './configr';
-import { formatText } from './string';
+import * as mtb from './minitoolbox';
 
-var cacheFolder: string;    // 缓存文件 根目录
-var cacheFile: string;      // 缓存文件 路径  cacheFolder + "cacheFile"
-var readingFile: number;    // 缓存文件 句柄
-var position: number;       // 读到位置
-var text: string;           // 在读文本
-var hide: boolean;          // 老板键 隐藏状态
+let cacheFolder: string;    // 缓存文件 根目录
+let cacheFile: string;      // 缓存文件 路径  cacheFolder + "cacheFile"
+let sourceFile: string;     // 源文件   路径
+let readingFile: number;    // 缓存文件 句柄
+//let position: number;       // 读到位置     这玩意限定用 configr 转递
+let text: string;           // 在读文本
+let hide: boolean;          // 老板键 隐藏状态
 
-var configr: Configr;
+let configr: Configr;       // 配置管理
+
+function Build(buffer: Buffer, encoding: string, wordslimit: number) {
+    let book: string = mtb.decode(buffer, encoding);
+    book = mtb.formatText(book, wordslimit);
+    fse.writeFileSync(cacheFile, mtb.encode(book));
+    configr.SettotalLine(book.length / (wordslimit + 1));
+    readingFile = fse.openSync(cacheFile, 'r');
+}
 
 function WorkInit(): void {
     vscode.window.showOpenDialog({
@@ -28,41 +36,15 @@ function WorkInit(): void {
     }).then((uri: vscode.Uri[] | undefined) => {
         if (uri && uri[0]) {
             const frmfile: string = uri[0].fsPath;
-            
             let buffer: Buffer = fse.readFileSync(frmfile);
             
-            // 测试是否为二进制文件  todo: UTF-16
-            const bytesToCheck = Math.min(buffer.length, 1024);
-            for (let i = 0; i < bytesToCheck; ++ i) {
-                if (buffer[i] === 0) {
-                    vscode.window.showErrorMessage('二进制文件不支持！');
-                    return;
-                }
+            if (mtb.isBinaryFile(buffer)) {
+                vscode.window.showErrorMessage('二进制文件不支持！');
+                return;
             }
-            
-            let encoding: string = chardet.detect(buffer) || 'utf8';
-            
-            let text: string;
-            if (encoding.toLowerCase() !== 'utf-8') {
-                text = iconv.decode(buffer, encoding);
-            } else {
-                text = buffer.toString('utf8');
-            }
-            
-            
-            let wordslimit = configr.GetWordsLimit();
-            
-            text = formatText(text, wordslimit);
-            
-            Buffer.from(text, 'binary')
-            fse.writeFileSync(cacheFile, iconv.encode(text, 'utf32le'));
-            
-            // 初始化指针为0
-            //configr.SetPosition(0);
-            configr.SettotalLine(text.length / (wordslimit + 1));
-            
-            readingFile = fse.openSync(cacheFile, 'r');
-            
+            fse.copyFile(frmfile, sourceFile);
+            Build(buffer, mtb.detect(buffer), configr.GetWordsLimit());
+            configr.SetPosition(0);
             vscode.window.showInformationMessage('读取执行完毕');
         }
     });
@@ -70,8 +52,8 @@ function WorkInit(): void {
 
 // 从缓存读取所需内容
 function Read(): string {
-    let wordslimit: number = configr.GetWordsLimit();
-    
+    let wordslimit: number = configr.GetWordsLimit() + 1;
+    let position: number = configr.GetPosition();
     // 检查文件是否读取完/读到头
     if (position < 1) {
         position = 0;
@@ -88,15 +70,15 @@ function Read(): string {
     let buffer = Buffer.alloc(wordslimit * 4, 0);
     fse.readSync(readingFile, buffer, 0, wordslimit * 4, (position - 1) * wordslimit * 4);
     
-    let readText: string = iconv.decode(buffer, 'utf32le');
+    let readText: string = mtb.decode(buffer).replaceAll('\uF888', '');
     
     return readText;
 }
 
 // 向工作区写入
-function Write(text: string = Read()) {
-    let sign: string = configr.GetSign();
-    let editor: vscode.TextEditor = configr.GetEditor();
+function Write(text: string | undefined = undefined): void {
+    let editor: vscode.TextEditor = mtb.GetEditor();
+    let sign: string = configr.GetSign(editor.document.languageId);
     // 如果不存在标志符
     if (editor.document.getText().indexOf(sign) === -1) {
         editor.edit(editBuilder => {
@@ -106,6 +88,10 @@ function Write(text: string = Read()) {
             Write(text);
         });
         return;
+    }
+    
+    if (text === undefined) {
+        text = Read();
     }
     
     for (let lineNumber = 0; lineNumber < editor.document.lineCount; ++ lineNumber) {
@@ -127,27 +113,32 @@ function Write(text: string = Read()) {
 }
 
 // 显示下一句
-async function WorkNext(): Promise<void> {
-    ++ position;
+function WorkNext(): void {
+    configr.SetPosition(configr.GetPosition() + 1);
     Write();
+    hide = false;
 }
 
 //显示上一句
-async function WorkLast(): Promise<void> {
-    -- position;
+function WorkLast(): void {
+    configr.SetPosition(configr.GetPosition() - 1);
     Write();
+    hide = false;
 }
 
 function WorkTurn(): void {
     let totalLine: number = configr.GettotalLine();
     vscode.window.showInputBox({
-        prompt: '请输入跳转页数（当前第 ' + position.toString() + ' 页，共 ' + totalLine.toString() + ' 页）',
+        prompt: `请输入跳转页数（当前第 ${configr.GetPosition().toString()} 页，共 ${totalLine.toString()} 页）`,
         placeHolder: '1~' + totalLine.toString(),
         validateInput: (res: string) => {
             if (isNaN(Number(res))) {
                 return '输入不是数字'
             }
             let page = Number(res);
+            if (page !== Math.floor(page)) {
+                return '输入不是整数'
+            }
             if (page < 1 || page > totalLine) {
                 return '范围不合法'
             }
@@ -155,16 +146,16 @@ function WorkTurn(): void {
         },
     }).then((turnPage) => {
         // console.log(turnPage);
-        if (isNaN(Number(turnPage))) {
+        if (turnPage) {
+            configr.SetPosition(Number(turnPage) - 1);
+            WorkNext();
+        } else {
             vscode.window.showInformationMessage('取消跳转');
-            return;
         }
-        position = Number(turnPage);
-        Write();
     });
 }
 
-function WorkHide(): void {
+function WorkHide(): void {   // todo: 用更麻烦的方式实现
     if (hide === false) {
         hide = true;
         Write("");
@@ -174,125 +165,131 @@ function WorkHide(): void {
     }
 }
 
-let TryCatchFinally: (func: () => void) => () => void = (func: () => void) => () => {
-    if (func !== WorkHide) {
-        hide = false;
-    }
-    position = configr.GetPosition();
-    try {
-        func();
-    } catch (err) { // todo
-        if (err instanceof Error) {
-            vscode.window.showErrorMessage(err.message);
-        } else {
-            vscode.window.showErrorMessage('未知错误');
+function WorkSet() {
+    vscode.window.showQuickPick([
+        "WordsLimit",
+        "Sign"
+    ]).then(value => {
+        if (value) {
+            switch (value) {
+                case "WordsLimit":
+                    vscode.window.showInputBox({
+                        prompt: `当前 ${value} 的值为 ${configr.GetWordsLimit()}，请输入新的值`,
+                        validateInput: (res: string) => {
+                            let val = Number(res);
+                            if (isNaN(val)) {
+                                return '输入不是数字'
+                            }
+                            if (val !== Math.floor(val)) {
+                                return '输入不是整数'
+                            }
+                            if (val < 1) {
+                                return '不能小于 1'
+                            }
+                            return null;
+                        },
+                    }).then((res) => {
+                        if (res) {
+                            let LastWordsLimit: number = configr.GetWordsLimit();
+                            let NowWordsLimit: number = Number(res);
+                            
+                            // 已经读了多少个不为\uF888的字符
+                            let count: number = 0;
+                            count = configr.GetPosition() * (LastWordsLimit + 1);
+                            let buffer = Buffer.alloc(count * 4, 0);
+                            fse.readSync(readingFile, buffer, 0, count * 4, 0);
+                            count = mtb.decode(buffer).replaceAll('\uF888', '').length;
+                            
+                            configr.SetWordsLimit(NowWordsLimit);
+                            buffer = fse.readFileSync(sourceFile);
+                            Build(buffer, mtb.detect(buffer), NowWordsLimit);
+                            
+                            let position: number = 0;
+                            ++ NowWordsLimit;
+                            buffer = Buffer.alloc(NowWordsLimit * 4, 0);
+                            while (count >= 0) {
+                                fse.readSync(readingFile, buffer, 0, NowWordsLimit * 4, position * NowWordsLimit * 4);
+                                count -= mtb.decode(buffer).replaceAll('\uF888', '').length;
+                                ++ position;
+                            }
+                            configr.SetPosition(position - 1);
+                            
+                            vscode.window.showInformationMessage(`WordsLimit 已从 ${LastWordsLimit} 更改为 ${NowWordsLimit - 1}`);
+                        }
+                    });
+                    break;
+                case "Sign": // todo
+                    break;
+            }
         }
-    } finally {
-        configr.SetPosition(position);
-    }
-};
-//*//   
+    });
+} 
 
 //*//   配置更新
 function CheckConfigVersion() {
-    let ConfigVersionTag: number = configr.GetConfigVersionTag();
-    if (ConfigVersionTag < 2) {
-        try {
-            fse.accessSync(cacheFolder + "txtfile1", fse.constants.F_OK | fse.constants.W_OK);
-        } catch {
-            ConfigVersionTag = 0;
-            WorkInit();
-        }
-        if (ConfigVersionTag === 1) {
-            let text1 = fse.readFileSync(cacheFolder + "txtfile1", 'utf8') + fse.readFileSync(cacheFolder + "txtfile2", 'utf8');
-            let text2 = fse.readFileSync(cacheFolder + "txtfile3", 'utf8');
-            
-            let text: string = text1 + text2;
-            
-            Buffer.from(text, 'binary')
-            fse.writeFileSync(cacheFile, iconv.encode(text, 'utf32le'));
-            
-            position = text1.length;
-            configr.SetPosition(position);
-            readingFile = fse.openSync(cacheFile, 'r');
-            
-            vscode.window.showInformationMessage('配置版本更新完成: 1 -> 2');
-        }
-        configr.SetConfigVersionTag(2);
-    }
+    //let ConfigVersionTag: number = configr.GetConfigVersionTag();
+    //if (ConfigVersionTag < 2) {
+    //    try {
+    //        fse.accessSync(cacheFolder + "txtfile1", fse.constants.F_OK | fse.constants.W_OK);
+    //    } catch {
+    //        ConfigVersionTag = 0;
+    //        WorkInit();
+    //    }
+    //    if (ConfigVersionTag === 1) {
+    //        let text1 = fse.readFileSync(cacheFolder + "txtfile1", 'utf8')
+    //                  + fse.readFileSync(cacheFolder + "txtfile2", 'utf8');
+    //        let text2 = fse.readFileSync(cacheFolder + "txtfile3", 'utf8');
+    //        
+    //        let text: string = text1 + text2;
+    //        
+    //        Buffer.from(text, 'binary')
+    //        fse.writeFileSync(cacheFile, mtb.encode(text));
+    //        
+    //        position = text1.length;
+    //        configr.SetPosition(position);
+    //        readingFile = fse.openSync(cacheFile, 'r');
+    //        
+    //        vscode.window.showInformationMessage('配置版本更新完成: 1 -> 2');
+    //    }
+    //    configr.SetConfigVersionTag(2);
+    //}
 }
 //*//
 
 //*//   入口函数
 function activate(context: vscode.ExtensionContext): void {
-    // 极端错误处理
-    if (EXTREME_ERROR) {
-        vscode.window.showErrorMessage('程序遭遇极端错误，请联系开发者，如需重新启动，请禁用并重新启用本插件');
-        return;
-    }
+    //// 极端错误处理
+    //if (EXTREME_ERROR) {
+    //    vscode.window.showErrorMessage('程序遭遇极端错误，请联系开发者，如需重新启动，请禁用并重新启用本插件');
+    //    return;
+    //}
     
     // 全局变量初始化
     cacheFolder = context.globalStorageUri.fsPath + '/';
     cacheFile = cacheFolder + "cacheFile";
+    sourceFile = cacheFolder + "sourceFile";
     readingFile = fse.openSync(cacheFile, 'r');
     hide = false;
     configr = new Configr(context);
     text = "";
     
+    ///*
+    //
+    //configr.SetConfigVersionTag(0);
+    //configr.SetWordsLimit(20);
+    configr.SetSign("default", '/// ');
+    //
+    ////*/
+    
     // 注册命令
-    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.init', TryCatchFinally(WorkInit)));
-    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.next', TryCatchFinally(WorkNext)));
-    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.last', TryCatchFinally(WorkLast)));
-    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', TryCatchFinally(WorkHide)));
-    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', TryCatchFinally(WorkTurn)));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.init', WorkInit));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.next', WorkNext));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.last', WorkLast));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', WorkHide));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', WorkTurn));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.settings', WorkSet));
     
     CheckConfigVersion();
-}
-//*//
-
-//*// 错误集中处理
-type ErrorType = number;                    // todo: 长得不太好看，要不用枚举类型
-const ERROR_UNKOWN: ErrorType = -1;
-const ERROR_SIGN_SETTING: ErrorType = 2;
-const ERROR_FILE_NOT_FOUND: ErrorType = 3;
-const ERROR_WORDSLIMIT: ErrorType = 4;
-const ERROR_IMPOSSIBLE: ErrorType = 114514;
-function ThrowError(err: ErrorType): void {
-    switch (err) {
-        case ERROR_UNKOWN:
-            vscode.window.showErrorMessage(`未知错误(ﾟДﾟ*)ﾉ，请联系开发者`);
-            ExtremeErrorExitAndDeactive(err);
-            break;
-        case ERROR_SIGN_SETTING:
-            vscode.window.showErrorMessage(`请检查标志符设定╰（‵□′）╯`);
-            ErrorExit(err);
-            break;
-        case ERROR_WORDSLIMIT:
-            vscode.window.showErrorMessage(`请检查每行最大字数设定（￣︶￣）↗`);
-            ErrorExit(err);
-            break;
-        case ERROR_IMPOSSIBLE:
-            vscode.window.showErrorMessage(`不可能的错误(╯‵□′)╯︵┻━┻，你这代码有问题啊，快去嘲笑开发者。`);
-            ExtremeErrorExitAndDeactive(err);
-            break;
-        default:
-            vscode.window.showErrorMessage(`未正确处理的错误😂，请联系开发者。`);
-            ExtremeErrorExitAndDeactive(err);
-            break;
-    }
-    ThrowError(ERROR_IMPOSSIBLE);
-}
-
-// 因错误强制退出
-function ErrorExit(err: ErrorType): never {
-    throw new Error(`Error: ${err}`);
-}
-// 极端错误强制退出并不再被激活
-var EXTREME_ERROR: boolean = false;
-function ExtremeErrorExitAndDeactive(err: ErrorType): never {
-    EXTREME_ERROR = true
-    deactivate();
-    throw new Error(`Error: ${err}`);
 }
 //*//
 

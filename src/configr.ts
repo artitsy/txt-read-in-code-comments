@@ -9,26 +9,12 @@ class Configr {
         this.context = context;
     }
     
-    
-    GetEditor(): vscode.TextEditor {
-        let editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            //vscode.window.showErrorMessage('不在活动的编辑器中');
-            throw new Error('不在活动的编辑器中');
-        }
-        return editor;
-    }
-    
-    GetLang(): string {
-        return this.GetEditor().document.languageId;
-    }
-    
     GetWordsLimit(): number {
         return this.context.globalState.get("WordsLimit");
     }
     
-    GetSign(): string { 
-        let sign:string = this.context.globalState.get("Sign-" + this.GetLang());
+    GetSign(lang: string): string { 
+        let sign:string = this.context.globalState.get("Sign-" + lang);
         if (!sign) {
             sign = this.context.globalState.get("Sign-default");
         }
