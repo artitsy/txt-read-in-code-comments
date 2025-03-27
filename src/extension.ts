@@ -1,6 +1,5 @@
 import fse = require('fs-extra');
 import * as vscode from 'vscode';
-
 import { ErrorType } from './error';
 import { Configr } from './configr';
 import * as mtb from './minitoolbox';
@@ -218,7 +217,52 @@ function WorkSet() {
                         }
                     });
                     break;
-                case "Sign": // todo
+                case "Sign":
+                    //console.log(vscode.languages.getLanguages());
+                    vscode.languages.getLanguages().then((languages) => {
+                        
+                        languages.sort();
+                        languages.unshift('default');
+                        
+                        const quickpick = vscode.window.createQuickPick();
+                        
+                        quickpick.items = languages
+                            .map(lang => {
+                                const sign = configr.GetSign(lang);
+                                
+                                return {
+                                    label: lang,
+                                    detail: `(${sign})`,
+                                    //iconClasses: ['file-icon', `${lang}-lang-file-icon`]
+                                };
+                            });
+                        quickpick.show();
+                        quickpick.onDidChangeSelection(selection => {
+                            if (selection.length > 0) {
+                                const selected = selection[0];
+                                const lang = selected.label;
+                                const sign = configr.GetSign(lang);
+                                
+                                vscode.window.showInputBox({
+                                    prompt: `当前 ${lang} 的标志符为 (${sign})，请输入新的标志符`,
+                                    value: sign,
+                                    validateInput: (res: string) => {
+                                        if (res.length === 0) {
+                                            return '输入不能为空'
+                                        }
+                                        return null;
+                                    },
+                                }).then((res) => {
+                                    if (res) {
+                                        configr.SetSign(lang, res);
+                                        vscode.window.showInformationMessage(`${lang} 的标志符已更改为 (${res})`);
+                                    }
+                                });
+                            }
+                        });
+                    });
+                    
+                    
                     break;
             }
         }
