@@ -7,7 +7,9 @@
         "strictNullChecks": false,
         "strictFunctionTypes": true,
         "sourceMap": true,
-        "skipLibCheck": true
+        "skipLibCheck": true,
+		"rootDir": "src",
+		"outDir": "out",
     },
     "exclude": [
         "node_modules",
