@@ -298,7 +298,7 @@ function CheckConfigVersion() {
         configr.SetSign("default", '/// ');
         configr.SetWordsLimit(20);
         
-        let NowWordsLimit: number = 20;
+        let NowWordsLimit: number = vscode.workspace.getConfiguration().get("txt-read-in-code-comments.WordsLimit", 20);
         fse.copyFile(cacheFile, sourceFile);
         let count: number = configr.GetPosition();
         
