@@ -55,13 +55,17 @@ function Read(): string {
     let position: number = configr.GetPosition();
     // 检查文件是否读取完/读到头
     if (position < 1) {
-        position = 0;
-        vscode.window.showInformationMessage(`到头了呢。`);
+        if (position < 0) {
+            configr.SetPosition(0);
+        }
+        vscode.window.showInformationMessage(`到头了呢。总 ${configr.GettotalLine()} 页。`);
         return "-- BEGIN --";
     }
     if (position > configr.GettotalLine()) {
-        position = configr.GettotalLine() + 1;
-        vscode.window.showInformationMessage(`读完了呢。`);
+        if (position > configr.GettotalLine() + 1) {
+            configr.SetPosition(configr.GettotalLine() + 1);
+        }
+        vscode.window.showInformationMessage(`读完了呢。总 ${configr.GettotalLine()} 页。`);
         return "-- END --";
     }
     //const stats: fse.Stats = fse.statSync(cacheFile);
@@ -154,7 +158,7 @@ function WorkTurn(): void {
     });
 }
 
-function WorkHide(): void {   // todo: 用更麻烦的方式实现
+function WorkHide(): void {
     if (hide === false) {
         hide = true;
         Write("");
@@ -271,59 +275,79 @@ function WorkSet() {
 
 //*//   配置更新
 function CheckConfigVersion() {
-    //let ConfigVersionTag: number = configr.GetConfigVersionTag();
-    //if (ConfigVersionTag < 2) {
-    //    try {
-    //        fse.accessSync(cacheFolder + "txtfile1", fse.constants.F_OK | fse.constants.W_OK);
-    //    } catch {
-    //        ConfigVersionTag = 0;
-    //        WorkInit();
-    //    }
-    //    if (ConfigVersionTag === 1) {
-    //        let text1 = fse.readFileSync(cacheFolder + "txtfile1", 'utf8')
-    //                  + fse.readFileSync(cacheFolder + "txtfile2", 'utf8');
-    //        let text2 = fse.readFileSync(cacheFolder + "txtfile3", 'utf8');
-    //        
-    //        let text: string = text1 + text2;
-    //        
-    //        Buffer.from(text, 'binary')
-    //        fse.writeFileSync(cacheFile, mtb.encode(text));
-    //        
-    //        position = text1.length;
-    //        configr.SetPosition(position);
-    //        readingFile = fse.openSync(cacheFile, 'r');
-    //        
-    //        vscode.window.showInformationMessage('配置版本更新完成: 1 -> 2');
-    //    }
-    //    configr.SetConfigVersionTag(2);
-    //}
+    let ConfigVersionTag: number = configr.GetConfigVersionTag() | 0;
+    if (ConfigVersionTag < 2) {
+        configr.SetSign("default", '/// ');
+        configr.SetWordsLimit(20);
+        configr.SetPosition(0);
+        configr.SettotalLine(0);
+        try {
+            fse.accessSync(cacheFolder);
+        } catch {
+            fse.mkdirSync(cacheFolder);
+        }
+        let tempstats = fse.statSync(cacheFolder);
+        if (!tempstats.isDirectory()) {
+            fse.unlinkSync(cacheFolder);
+            fse.mkdirSync(cacheFolder);
+        }
+        fse.writeFileSync(cacheFile, mtb.encode(""));
+        fse.writeFileSync(sourceFile, mtb.encode(""));
+        configr.SetConfigVersionTag(3);
+    } else if (ConfigVersionTag < 3) {
+        configr.SetSign("default", '/// ');
+        configr.SetWordsLimit(20);
+        
+        let NowWordsLimit: number = 20;
+        fse.copyFile(cacheFile, sourceFile);
+        let count: number = configr.GetPosition();
+        
+        let buffer = fse.readFileSync(sourceFile);
+        Build(buffer, mtb.detect(buffer), NowWordsLimit);
+        
+        let position: number = 0;
+        ++ NowWordsLimit;
+        buffer = Buffer.alloc(NowWordsLimit * 4, 0);
+        while (count >= 0) {
+            fse.readSync(readingFile, buffer, 0, NowWordsLimit * 4, position * NowWordsLimit * 4);
+            count -= mtb.decode(buffer).replaceAll('\uF888', '').length;
+            ++ position;
+        }
+        configr.SetPosition(position - 1);
+        configr.SetConfigVersionTag(3);
+    }
 }
 //*//
 
 //*//   入口函数
 function activate(context: vscode.ExtensionContext): void {
-    //// 极端错误处理
+    // // 极端错误处理
     //if (EXTREME_ERROR) {
     //    vscode.window.showErrorMessage('程序遭遇极端错误，请联系开发者，如需重新启动，请禁用并重新启用本插件');
     //    return;
     //}
     
+    
     // 全局变量初始化
     cacheFolder = context.globalStorageUri.fsPath + '/';
     cacheFile = cacheFolder + "cacheFile";
     sourceFile = cacheFolder + "sourceFile";
-    readingFile = fse.openSync(cacheFile, 'r');
     hide = false;
     configr = new Configr(context);
     text = "";
     
     ///*
     //
-    //configr.SetConfigVersionTag(0);
+    //configr.SetConfigVersionTag(2);
     //configr.SetWordsLimit(20);
-    configr.SetSign("default", '/// ');
+    //configr.SetSign("default", '/// ');
     //
     ////*/
+    
+    CheckConfigVersion();
+    
+    readingFile = fse.openSync(cacheFile, 'r');
+    
     
     // 注册命令
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.init', WorkInit));
@@ -333,7 +357,6 @@ function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', WorkTurn));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.settings', WorkSet));
     
-    CheckConfigVersion();
 }
 //*//
 

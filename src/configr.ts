@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-//*//   配置管理  todo: 配置修改
+//*//
 class Configr {
     
     context: vscode.ExtensionContext;
