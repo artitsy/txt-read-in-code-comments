@@ -1,7 +1,6 @@
-import fse = require('fs-extra');
+import * as fse from "fs-extra";
 import * as vscode from 'vscode';
-import { ErrorType } from './error';
-import { Configr } from './configr';
+import {Configr} from './configr';
 import * as mtb from './minitoolbox';
 
 let cacheFolder: string;    // 缓存文件 根目录
@@ -14,11 +13,11 @@ let hide: boolean;          // 老板键 隐藏状态
 
 let configr: Configr;       // 配置管理
 
-function Build(buffer: Buffer, encoding: string, wordslimit: number) {
+function Build(buffer: Buffer, encoding: string, wordsLimit: number) {
     let book: string = mtb.decode(buffer, encoding);
-    book = mtb.formatText(book, wordslimit);
+    book = mtb.formatText(book, wordsLimit);
     fse.writeFileSync(cacheFile, mtb.encode(book));
-    configr.SettotalLine(book.length / (wordslimit + 1));
+    configr.SetTotalLine(book.length / (wordsLimit + 1));
     readingFile = fse.openSync(cacheFile, 'r');
 }
 
@@ -35,53 +34,53 @@ function WorkInit(): void {
     }).then((uri: vscode.Uri[] | undefined) => {
         if (uri && uri[0]) {
             const frmfile: string = uri[0].fsPath;
-            let buffer: Buffer = fse.readFileSync(frmfile);
+            const buffer: Buffer = fse.readFileSync(frmfile);
             
             if (mtb.isBinaryFile(buffer)) {
-                vscode.window.showErrorMessage('二进制文件不支持！');
+                vscode.window.showErrorMessage('二进制文件不支持！').then();
                 return;
             }
             fse.copyFile(frmfile, sourceFile);
             Build(buffer, mtb.detect(buffer), configr.GetWordsLimit());
             configr.SetPosition(0);
-            vscode.window.showInformationMessage('读取执行完毕');
+            vscode.window.showInformationMessage('读取执行完毕').then();
         }
     });
 }
 
 // 从缓存读取所需内容
 function Read(): string {
-    let wordslimit: number = configr.GetWordsLimit() + 1;
-    let position: number = configr.GetPosition();
+    const wordsLimit: number = configr.GetWordsLimit() + 1;
+    const position: number = configr.GetPosition();
     // 检查文件是否读取完/读到头
     if (position < 1) {
         if (position < 0) {
             configr.SetPosition(0);
         }
-        vscode.window.showInformationMessage(`到头了呢。总 ${configr.GettotalLine()} 页。`);
+        vscode.window.showInformationMessage(`到头了呢。总 ${configr.GetTotalLine()} 页。`).then();
         return "-- BEGIN --";
     }
-    if (position > configr.GettotalLine()) {
-        if (position > configr.GettotalLine() + 1) {
-            configr.SetPosition(configr.GettotalLine() + 1);
+    if (position > configr.GetTotalLine()) {
+        if (position > configr.GetTotalLine() + 1) {
+            configr.SetPosition(configr.GetTotalLine() + 1);
         }
-        vscode.window.showInformationMessage(`读完了呢。总 ${configr.GettotalLine()} 页。`);
+        vscode.window.showInformationMessage(`读完了呢。总 ${configr.GetTotalLine()} 页。`).then();
         return "-- END --";
     }
     //const stats: fse.Stats = fse.statSync(cacheFile);
     
-    let buffer = Buffer.alloc(wordslimit * 4, 0);
-    fse.readSync(readingFile, buffer, 0, wordslimit * 4, (position - 1) * wordslimit * 4);
+    const buffer = Buffer.alloc(wordsLimit * 4, 0);
+    fse.readSync(readingFile, buffer, 0, wordsLimit * 4, (position - 1) * wordsLimit * 4);
     
-    let readText: string = mtb.decode(buffer).replaceAll('\uF888', '');
+    const readText: string = mtb.decode(buffer).replaceAll('\uF888', '');
     
     return readText;
 }
 
 // 向工作区写入
 function Write(text: string | undefined = undefined): void {
-    let editor: vscode.TextEditor = mtb.GetEditor();
-    let sign: string = configr.GetSign(editor.document.languageId);
+    const editor: vscode.TextEditor = mtb.GetEditor();
+    const sign: string = configr.GetSign(editor.document.languageId);
     // 如果不存在标志符
     if (editor.document.getText().indexOf(sign) === -1) {
         editor.edit(editBuilder => {
@@ -100,16 +99,16 @@ function Write(text: string | undefined = undefined): void {
     for (let lineNumber = 0; lineNumber < editor.document.lineCount; ++ lineNumber) {
         
         // 寻找标记位置
-        let textOfThisLine: vscode.TextLine = editor.document.lineAt(lineNumber);
+        const textOfThisLine: vscode.TextLine = editor.document.lineAt(lineNumber);
         let indexPosition: number = textOfThisLine.text.indexOf(sign);
         
         // 替换文本
         if (indexPosition !== -1) {
             indexPosition += sign.length;
             editor.edit(editBuilder => {
-                let range: vscode.Range = new vscode.Range(lineNumber, indexPosition, lineNumber, textOfThisLine.text.length);
+                const range: vscode.Range = new vscode.Range(lineNumber, indexPosition, lineNumber, textOfThisLine.text.length);
                 editBuilder.replace(range, text);
-            });
+            }).then();
             break;
         }
     }
@@ -130,7 +129,7 @@ function WorkLast(): void {
 }
 
 function WorkTurn(): void {
-    let totalLine: number = configr.GettotalLine();
+    const totalLine: number = configr.GetTotalLine();
     vscode.window.showInputBox({
         prompt: `请输入跳转页数（当前第 ${configr.GetPosition().toString()} 页，共 ${totalLine.toString()} 页）`,
         placeHolder: '1~' + totalLine.toString(),
@@ -138,7 +137,7 @@ function WorkTurn(): void {
             if (isNaN(Number(res))) {
                 return '输入不是数字'
             }
-            let page = Number(res);
+            const page = Number(res);
             if (page !== Math.floor(page)) {
                 return '输入不是整数'
             }
@@ -153,7 +152,7 @@ function WorkTurn(): void {
             configr.SetPosition(Number(turnPage) - 1);
             WorkNext();
         } else {
-            vscode.window.showInformationMessage('取消跳转');
+            vscode.window.showInformationMessage('取消跳转').then();
         }
     });
 }
@@ -179,7 +178,7 @@ function WorkSet() {
                     vscode.window.showInputBox({
                         prompt: `当前 ${value} 的值为 ${configr.GetWordsLimit()}，请输入新的值`,
                         validateInput: (res: string) => {
-                            let val = Number(res);
+                            const val = Number(res);
                             if (isNaN(val)) {
                                 return '输入不是数字'
                             }
@@ -193,12 +192,11 @@ function WorkSet() {
                         },
                     }).then((res) => {
                         if (res) {
-                            let LastWordsLimit: number = configr.GetWordsLimit();
+                            const LastWordsLimit: number = configr.GetWordsLimit();
                             let NowWordsLimit: number = Number(res);
                             
                             // 已经读了多少个不为\uF888的字符
-                            let count: number = 0;
-                            count = configr.GetPosition() * (LastWordsLimit + 1);
+                            let count: number = configr.GetPosition() * (LastWordsLimit + 1);
                             let buffer = Buffer.alloc(count * 4, 0);
                             fse.readSync(readingFile, buffer, 0, count * 4, 0);
                             count = mtb.decode(buffer).replaceAll('\uF888', '').length;
@@ -217,7 +215,7 @@ function WorkSet() {
                             }
                             configr.SetPosition(position - 1);
                             
-                            vscode.window.showInformationMessage(`WordsLimit 已从 ${LastWordsLimit} 更改为 ${NowWordsLimit - 1}`);
+                            vscode.window.showInformationMessage(`WordsLimit 已从 ${LastWordsLimit} 更改为 ${NowWordsLimit - 1}`).then();
                         }
                     });
                     break;
@@ -259,7 +257,7 @@ function WorkSet() {
                                 }).then((res) => {
                                     if (res) {
                                         configr.SetSign(lang, res);
-                                        vscode.window.showInformationMessage(`${lang} 的标志符已更改为 (${res})`);
+                                        vscode.window.showInformationMessage(`${lang} 的标志符已更改为 (${res})`).then();
                                     }
                                 });
                             }
@@ -275,18 +273,18 @@ function WorkSet() {
 
 //*//   配置更新
 function CheckConfigVersion() {
-    let ConfigVersionTag: number = configr.GetConfigVersionTag() | 0;
+    const ConfigVersionTag: number = configr.GetConfigVersionTag() | 0;
     if (ConfigVersionTag < 2) {
         configr.SetSign("default", '/// ');
         configr.SetWordsLimit(20);
         configr.SetPosition(0);
-        configr.SettotalLine(0);
+        configr.SetTotalLine(0);
         try {
             fse.accessSync(cacheFolder);
         } catch {
             fse.mkdirSync(cacheFolder);
         }
-        let tempstats = fse.statSync(cacheFolder);
+        const tempstats = fse.statSync(cacheFolder);
         if (!tempstats.isDirectory()) {
             fse.unlinkSync(cacheFolder);
             fse.mkdirSync(cacheFolder);

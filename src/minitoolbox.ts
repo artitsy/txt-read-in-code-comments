@@ -4,12 +4,12 @@ import * as chardet from 'chardet';
 
 // 检查一个字符是否为标点符号
 function isPunctuation(char: string): boolean {
-    return /[，。！？；：”’】》）、,.!?;:'"\]\)>\}]/.test(char);
+    return /[，。！？；：”’】》）、,.!?;:'"\])>}]/.test(char);
 }
 
 // 格式化文本
 export function formatText(OriginalText: string, WordsLimit: number): string {
-    let lines: string[] = 
+    const lines: string[] = 
         ("\n" + OriginalText.replaceAll("\r", "\n") + "\n")
         .replace(/\n\n+/g, "\n")
         .slice(1, -1)
@@ -48,7 +48,7 @@ export function isBinaryFile(buffer: Buffer): boolean {
 
 // 判断编码
 export function detect(buffer: Buffer): string {
-    let encoding = chardet.detect(buffer.subarray(0, 131072)) || 'utf-8';
+    const encoding = chardet.detect(buffer.subarray(0, 131072)) || 'utf-8';
     if (encoding.toLowerCase() == 'gb2312' || encoding.toLowerCase() == 'gbk') {
         return 'gb18030';
     }
@@ -70,7 +70,7 @@ export function encode(text: string): Buffer {
 
 // 获取编辑器
 export function GetEditor(): vscode.TextEditor {
-    let editor = vscode.window.activeTextEditor;
+    const editor = vscode.window.activeTextEditor;
     if (!editor) {
         //vscode.window.showErrorMessage('不在活动的编辑器中');
         throw new Error('不在活动的编辑器中');
