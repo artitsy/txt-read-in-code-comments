@@ -29,28 +29,28 @@ class Configr {
         return this.context.globalState.get("ConfigVersionTag", 0);
     }
     
-    GettotalLine(): number {
+    GetTotalLine(): number {
         return this.context.globalState.get("totalLine");
     }
     
     SetWordsLimit(limit: number): void {
-        this.context.globalState.update("WordsLimit", limit);
+        this.context.globalState.update("WordsLimit", limit).then();
     }
     
     SetSign(lang: string, sign: string): void {
-        this.context.globalState.update("Sign-" + lang, sign);
+        this.context.globalState.update("Sign-" + lang, sign).then();
     }
     
     SetPosition(position: number): void {
-        this.context.globalState.update("position", position);
+        this.context.globalState.update("position", position).then();
     }
     
     SetConfigVersionTag(tag: number): void {
-        this.context.globalState.update("ConfigVersionTag", tag);
+        this.context.globalState.update("ConfigVersionTag", tag).then();
     }
     
-    SettotalLine(totalLine: number): void {
-        this.context.globalState.update("totalLine", totalLine);
+    SetTotalLine(totalLine: number): void {
+        this.context.globalState.update("totalLine", totalLine).then();
     }
 };
 //*//   
