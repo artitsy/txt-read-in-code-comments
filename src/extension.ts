@@ -7,9 +7,10 @@ let cacheFolder: string;    // 缓存文件 根目录
 let cacheFile: string;      // 缓存文件 路径  cacheFolder + "cacheFile"
 let sourceFile: string;     // 源文件   路径
 let readingFile: number;    // 缓存文件 句柄
+let statusBarItem: vscode.StatusBarItem; // 状态栏项
 //let position: number;       // 读到位置     这玩意限定用 configr 转递
-let text: string;           // 在读文本
-let hide: boolean;          // 老板键 隐藏状态
+//let text: string;           // 在读文本        已启用，老板键仅用于隐藏
+//let hide: boolean;          // 老板键 隐藏状态  已启用，老板键仅用于隐藏
 
 let configr: Configr;       // 配置管理
 
@@ -79,53 +80,66 @@ function Read(): string {
 
 // 向工作区写入
 function Write(text: string | undefined = undefined): void {
-    const editor: vscode.TextEditor = mtb.GetEditor();
-    const sign: string = configr.GetSign(editor.document.languageId);
-    // 如果不存在标志符
-    if (editor.document.getText().indexOf(sign) === -1) {
-        editor.edit(editBuilder => {
-            const begin = new vscode.Position(editor.selection.active.line, 0);
-            editBuilder.insert(begin, sign + "\n");
-        }).then(() => {
-            Write(text);
-        });
-        return;
-    }
-    
-    if (text === undefined) {
-        text = Read();
-    }
-    
-    for (let lineNumber = 0; lineNumber < editor.document.lineCount; ++ lineNumber) {
-        
-        // 寻找标记位置
-        const textOfThisLine: vscode.TextLine = editor.document.lineAt(lineNumber);
-        let indexPosition: number = textOfThisLine.text.indexOf(sign);
-        
-        // 替换文本
-        if (indexPosition !== -1) {
-            indexPosition += sign.length;
-            editor.edit(editBuilder => {
-                const range: vscode.Range = new vscode.Range(lineNumber, indexPosition, lineNumber, textOfThisLine.text.length);
-                editBuilder.replace(range, text);
-            }).then();
+    switch (configr.GetDisplayPlace()) {
+        case 0: {
+            const editor: vscode.TextEditor = mtb.GetEditor();
+            const sign: string = configr.GetSign(editor.document.languageId);
+            // 如果不存在标志符
+            if (editor.document.getText().indexOf(sign) === -1) {
+                editor.edit(editBuilder => {
+                    const begin = new vscode.Position(editor.selection.active.line, 0);
+                    editBuilder.insert(begin, sign + "\n");
+                }).then(() => {
+                    Write(text);
+                });
+                return;
+            }
+            
+            if (text === undefined) {
+                text = Read();
+            }
+            
+            for (let lineNumber = 0; lineNumber < editor.document.lineCount; ++ lineNumber) {
+                
+                // 寻找标记位置
+                const textOfThisLine: vscode.TextLine = editor.document.lineAt(lineNumber);
+                let indexPosition: number = textOfThisLine.text.indexOf(sign);
+                
+                // 替换文本
+                if (indexPosition !== -1) {
+                    indexPosition += sign.length;
+                    editor.edit(editBuilder => {
+                        const range: vscode.Range = new vscode.Range(lineNumber, indexPosition, lineNumber, textOfThisLine.text.length);
+                        editBuilder.replace(range, text);
+                    }).then();
+                    break;
+                }
+            }
+            break;
+        }
+        case 1: {
+            if (text === undefined) {
+                text = Read();
+            }
+            
+            statusBarItem.text = text;
+            statusBarItem.show();
             break;
         }
     }
+    
 }
 
 // 显示下一句
 function WorkNext(): void {
     configr.SetPosition(configr.GetPosition() + 1);
     Write();
-    hide = false;
 }
 
 //显示上一句
 function WorkLast(): void {
     configr.SetPosition(configr.GetPosition() - 1);
     Write();
-    hide = false;
 }
 
 function WorkTurn(): void {
@@ -158,19 +172,45 @@ function WorkTurn(): void {
 }
 
 function WorkHide(): void {
-    if (hide === false) {
-        hide = true;
-        Write("");
-    } else {
-        hide = false;
-        Write(text);
+    switch (configr.GetDisplayPlace()) {
+        case 0: {
+            const editor: vscode.TextEditor = mtb.GetEditor();
+            const sign: string = configr.GetSign(editor.document.languageId);
+            // 如果不存在标志符就不管
+            if (editor.document.getText().indexOf(sign) === -1) {
+                return;
+            }
+            
+            for (let lineNumber = 0; lineNumber < editor.document.lineCount; ++ lineNumber) {
+                
+                // 寻找标记位置
+                const textOfThisLine: vscode.TextLine = editor.document.lineAt(lineNumber);
+                let indexPosition: number = textOfThisLine.text.indexOf(sign);
+                
+                // 替换文本
+                if (indexPosition !== -1) {
+                    indexPosition += sign.length;
+                    editor.edit(editBuilder => {
+                        const range: vscode.Range = new vscode.Range(lineNumber, indexPosition, lineNumber, textOfThisLine.text.length);
+                        editBuilder.replace(range, "");
+                    }).then();
+                    break;
+                }
+            }
+            break;
+        }
+        case 1: {
+            statusBarItem.hide();
+            break;
+        }
     }
 }
 
 function WorkSet() {
     vscode.window.showQuickPick([
         "WordsLimit",
-        "Sign"
+        "Sign",
+        "DisplayPlace",
     ]).then(value => {
         if (value) {
             switch (value) {
@@ -266,6 +306,31 @@ function WorkSet() {
                     
                     
                     break;
+                case "DisplayPlace":
+                    let DPName: string [] = ["行内注释", "状态栏", "行间注释"];
+                    DPName[configr.GetDisplayPlace()] += " (当前)";
+                    vscode.window.showQuickPick([
+                        DPName[0],
+                        DPName[1],
+                        //DPName[2],
+                    ]).then(value => {
+                        if (value) {
+                            WorkHide();
+                            switch (value) {
+                                case DPName[0]:
+                                    configr.SetDisplayPlace(0);
+                                    break;
+                                case DPName[1]:
+                                    configr.SetDisplayPlace(1);
+                                    break;
+                                //case DPName[2]:
+                                //    configr.SetDisplayPlace(2);
+                                //    break;
+                            }
+                            vscode.window.showInformationMessage(`显示位置已更改为 ${value}`).then();
+                        }
+                    });
+                    break;
             }
         }
     });
@@ -330,9 +395,10 @@ function activate(context: vscode.ExtensionContext): void {
     cacheFolder = context.globalStorageUri.fsPath + '/';
     cacheFile = cacheFolder + "cacheFile";
     sourceFile = cacheFolder + "sourceFile";
-    hide = false;
     configr = new Configr(context);
-    text = "";
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+    statusBarItem.text = "";
+    statusBarItem.command = "txt-read-in-code-comments.hide";
     
     ///*
     //

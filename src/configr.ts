@@ -21,6 +21,10 @@ class Configr {
         return sign;
     }
     
+    GetDisplayPlace(): number {
+        return this.context.globalState.get("DisplayPlace", 0);
+    }
+    
     GetPosition(): number {
         return this.context.globalState.get("position");
     }
@@ -39,6 +43,10 @@ class Configr {
     
     SetSign(lang: string, sign: string): void {
         this.context.globalState.update("Sign-" + lang, sign).then();
+    }
+    
+    SetDisplayPlace(dp: number): void {
+        this.context.globalState.update("DisplayPlace", dp).then();
     }
     
     SetPosition(position: number): void {
