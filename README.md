@@ -1,7 +1,7 @@
 # txt read in code comments 项目介绍
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 这是一个能帮助你在代码注释中嵌入文本内容的插件。
@@ -139,6 +139,7 @@
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/tsxc-github"><img src="https://avatars.githubusercontent.com/u/94750616?v=4?s=100" width="100px;" alt="星澜曦光"/><br /><sub><b>星澜曦光</b></sub></a><br /><a href="#maintenance-tsxc-github" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://allcontributors.org"><img src="https://avatars.githubusercontent.com/u/46410174?v=4?s=100" width="100px;" alt="All Contributors"/><br /><sub><b>All Contributors</b></sub></a><br /><a href="https://github.com/artitsy/txt-read-in-code-comments/commits?author=all-contributors" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Sky-Bridge"><img src="https://avatars.githubusercontent.com/u/33591025?v=4?s=100" width="100px;" alt="Bridge"/><br /><sub><b>Bridge</b></sub></a><br /><a href="https://github.com/artitsy/txt-read-in-code-comments/commits?author=Sky-Bridge" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://halberdcease.github.io"><img src="https://avatars.githubusercontent.com/u/139939043?v=4?s=100" width="100px;" alt="Halberd Cease"/><br /><sub><b>Halberd Cease</b></sub></a><br /><a href="https://github.com/artitsy/txt-read-in-code-comments/commits?author=HalberdCease" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
