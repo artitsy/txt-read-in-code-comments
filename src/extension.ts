@@ -360,57 +360,57 @@ function WorkSearch(): void {
     }).then((searchText) => {
         if (searchText) {
             // 执行搜索
-            const searchResults = searchInFormattedContent(searchText);
-            showSearchResults(searchText, searchResults);
+            
+            const results: SearchResult[] = [];
+            
+            // 读取源文件
+            const buffer = fse.readFileSync(cacheFile);
+            
+            const content = mtb.decode(buffer);
+            const wordsLimit = configr.GetWordsLimit();
+            
+            const Pattern = searchText
+                .slice(0, -1)
+                .split('')
+                .map(ch => `${ch}(\\uF888*)`);
+            Pattern.push(searchText.slice(-1));
+            const pattern = Pattern.join('');
+            
+            var searchpatt = new RegExp(pattern, 'g');
+            
+            
+            let matchCount = 0;
+            let match: RegExpExecArray | null;
+            while ((match = searchpatt.exec(content)) !== null) {
+                // 多余 24 项匹配，就不显示了
+                ++ matchCount;
+                if (matchCount > 24) {
+                    vscode.window.showWarningMessage(`匹配项多于 24 个，请使用更详细的检索词。`).then();
+                    return;
+                }
+                
+                const pageNumber = Math.floor(match.index / (wordsLimit + 1));
+                const pageContent = content.slice(pageNumber * (wordsLimit + 1), (pageNumber + 1) * (wordsLimit + 1));
+
+                const startIndex = match.index % (wordsLimit + 1);
+                const endIndex = startIndex + match[0].length - 1;
+                
+                const beforeContext = pageContent.slice(0, startIndex);
+                const afterContext = pageContent.slice(endIndex + 1);
+                
+                results.push({
+                    pageNumber: pageNumber + 1,
+                    pageContent: pageContent,
+                    startIndex: startIndex,
+                    endIndex: endIndex,
+                    beforeContext: beforeContext,
+                    afterContext: afterContext
+                });
+            }
+            
+            showSearchResults(searchText, results);
         }
     });
-}
-
-// 在格式化后的内容中搜索
-function searchInFormattedContent(searchText: string): SearchResult[] {
-    const results: SearchResult[] = [];
-    
-    // 读取源文件
-    const buffer = fse.readFileSync(sourceFile);
-    const encoding = mtb.detect(buffer);
-    
-    // 获取格式化后的内容
-    const content = mtb.decode(buffer, encoding);
-    const wordsLimit = configr.GetWordsLimit();
-    const formattedContent = mtb.formatText(content, wordsLimit);
-    
-    // 将格式化后的内容分割成"页"
-    const pages = [];
-    const pageSize = wordsLimit + 1; // 每页字符数（包括格式化字符）
-    
-    for (let i = 0; i < formattedContent.length; i += pageSize) {
-        pages.push(formattedContent.substr(i, pageSize).replace(/\uF888/g, ''));
-    }
-    
-    // 在每一页中搜索
-    for (let pageNum = 0; pageNum < pages.length; pageNum++) {
-        const page = pages[pageNum];
-        let index = -1;
-        
-        // 查找当前页中所有匹配项
-        while ((index = page.indexOf(searchText, index + 1)) !== -1) {
-            // 计算匹配项在页内的位置
-            const beforeText = page.substring(0, index);
-            const afterText = page.substring(index + searchText.length);
-            
-            const result: SearchResult = {
-                pageNumber: pageNum + 1, // 页码从1开始
-                pageContent: page,
-                startIndex: index,
-                endIndex: index + searchText.length,
-                beforeContext: beforeText.slice(-20), // 前20个字符作为上下文
-                afterContext: afterText.slice(0, 20)  // 后20个字符作为上下文
-            };
-            results.push(result);
-        }
-    }
-    
-    return results;
 }
 
 // 显示搜索结果
