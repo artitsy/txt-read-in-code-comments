@@ -336,6 +336,141 @@ function WorkSet() {
     });
 } 
 
+// 搜索结果类型定义
+interface SearchResult {
+    pageNumber: number;    // 页码
+    pageContent: string;   // 页面内容
+    startIndex: number;    // 匹配开始位置
+    endIndex: number;      // 匹配结束位置
+    beforeContext?: string; // 匹配前的上下文
+    afterContext?: string;  // 匹配后的上下文
+}
+
+// 全文搜索函数
+function WorkSearch(): void {
+    vscode.window.showInputBox({
+        prompt: '请输入要搜索的内容',
+        placeHolder: '搜索关键词',
+        validateInput: (text: string) => {
+            if (!text || text.trim().length === 0) {
+                return '搜索内容不能为空';
+            }
+            return null;
+        }
+    }).then((searchText) => {
+        if (searchText) {
+            // 执行搜索
+            
+            const results: SearchResult[] = [];
+            
+            // 读取源文件
+            const buffer = fse.readFileSync(cacheFile);
+            
+            const content = mtb.decode(buffer);
+            const wordsLimit = configr.GetWordsLimit();
+            
+            const Pattern = searchText
+                .slice(0, -1)
+                .split('')
+                .map(ch => `${ch}(\\uF888*)`);
+            Pattern.push(searchText.slice(-1));
+            const pattern = Pattern.join('');
+            
+            var searchpatt = new RegExp(pattern, 'g');
+            
+            
+            let matchCount = 0;
+            let match: RegExpExecArray | null;
+            while ((match = searchpatt.exec(content)) !== null) {
+                // 多余 24 项匹配，就不显示了
+                ++ matchCount;
+                if (matchCount > 24) {
+                    vscode.window.showWarningMessage(`匹配项多于 24 个，请使用更详细的检索词。`).then();
+                    return;
+                }
+                
+                const pageNumber = Math.floor(match.index / (wordsLimit + 1));
+                const pageContent = content.slice(pageNumber * (wordsLimit + 1), (pageNumber + 1) * (wordsLimit + 1));
+
+                const startIndex = match.index % (wordsLimit + 1);
+                const endIndex = startIndex + match[0].length - 1;
+                
+                const beforeContext = pageContent.slice(0, startIndex);
+                const afterContext = pageContent.slice(endIndex + 1);
+                
+                results.push({
+                    pageNumber: pageNumber + 1,
+                    pageContent: pageContent,
+                    startIndex: startIndex,
+                    endIndex: endIndex,
+                    beforeContext: beforeContext,
+                    afterContext: afterContext
+                });
+            }
+            
+            showSearchResults(searchText, results);
+        }
+    });
+}
+
+// 显示搜索结果
+function showSearchResults(searchText: string, results: SearchResult[]): void {
+    if (results.length === 0) {
+        vscode.window.showInformationMessage(`未找到匹配内容: "${searchText}"`).then();
+        return;
+    }
+    
+    // 创建 QuickPick 项
+    const items: vscode.QuickPickItem[] = results.map((result, index) => {
+        // 构建上下文显示
+        let context = '';
+        if (result.beforeContext) {
+            context += result.beforeContext.length === 20 ? '...' : '';
+            context += result.beforeContext;
+        }
+        
+        context += searchText; // 添加搜索文本
+        
+        if (result.afterContext) {
+            context += result.afterContext;
+            context += result.afterContext.length === 20 ? '...' : '';
+        }
+        
+        return {
+            label: `第 ${result.pageNumber} 页`,
+            description: context,
+            detail: `匹配 ${index + 1}/${results.length}`
+        };
+    });
+    
+    // 显示 QuickPick
+    const quickPick = vscode.window.createQuickPick();
+    quickPick.items = items;
+    quickPick.placeholder = `找到 ${results.length} 个匹配项，选择一个跳转`;
+    quickPick.onDidChangeSelection(selection => {
+        if (selection[0]) {
+            const selectedIndex = items.indexOf(selection[0]);
+            if (selectedIndex !== -1) {
+                const selectedResult = results[selectedIndex];
+                jumpToPage(selectedResult.pageNumber);
+                quickPick.hide();
+            }
+        }
+    });
+    quickPick.onDidHide(() => quickPick.dispose());
+    quickPick.show();
+}
+
+// 跳转到指定页
+function jumpToPage(pageNumber: number): void {
+    // 直接设置位置并显示
+    configr.SetPosition(pageNumber);
+    Write();
+    
+    vscode.window.showInformationMessage(`已跳转到第 ${pageNumber} 页`).then();
+}
+
+
 //*//   配置更新
 function CheckConfigVersion() {
     const ConfigVersionTag: number = configr.GetConfigVersionTag() | 0;
@@ -420,6 +555,7 @@ function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', WorkHide));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', WorkTurn));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.settings', WorkSet));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.search', WorkSearch));
     
 }
 //*//
