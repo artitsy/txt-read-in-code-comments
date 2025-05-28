@@ -9,8 +9,8 @@ let sourceFile: string;     // 源文件   路径
 let readingFile: number;    // 缓存文件 句柄
 let statusBarItem: vscode.StatusBarItem; // 状态栏项
 //let position: number;       // 读到位置     这玩意限定用 configr 转递
-//let text: string;           // 在读文本        已启用，老板键仅用于隐藏
-//let hide: boolean;          // 老板键 隐藏状态  已启用，老板键仅用于隐藏
+//let text: string;           // 在读文本        已弃用，老板键仅用于隐藏
+//let hide: boolean;          // 老板键 隐藏状态  已弃用，老板键仅用于隐藏
 
 let configr: Configr;       // 配置管理
 
@@ -18,7 +18,7 @@ function Build(buffer: Buffer, encoding: string, wordsLimit: number) {
     let book: string = mtb.decode(buffer, encoding);
     book = mtb.formatText(book, wordsLimit);
     fse.writeFileSync(cacheFile, mtb.encode(book));
-    configr.SetTotalLine(book.length / (wordsLimit + 1));
+    configr.SetTotalLine(mtb.StrLength(book) / (wordsLimit + 1));
     readingFile = fse.openSync(cacheFile, 'r');
 }
 
