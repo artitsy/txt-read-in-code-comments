@@ -2,6 +2,16 @@ import * as iconv from 'iconv-lite';
 import * as vscode from 'vscode';
 import * as chardet from 'chardet';
 
+// 获取实际字符数，如字符‘💩’‘👁’在string中占了两位。
+export function StrLength(text: string): number {
+    const spRegexp = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
+    let val = 0;
+    if (text) {
+        val = text.replace(spRegexp, '_').length;
+    }
+    return val;
+}
+
 // 检查一个字符是否为标点符号
 function isPunctuation(char: string): boolean {
     return /[，。！？；：”’】》）、,.!?;:'"\])>}]/.test(char);
@@ -19,17 +29,26 @@ export function formatText(OriginalText: string, WordsLimit: number): string {
     
     for (const line of lines) {
         let i = 0;
-        for (; i + WordsLimit < line.length; i += WordsLimit) {
-            let sentence = line.slice(i, i + WordsLimit + 1);
-            if (!isPunctuation(sentence.slice(-1))) {
-                sentence = sentence.slice(0, -1) + '\uF888';
+        let sentence = "";
+        let j = 0;
+        for (const c of line) {
+            if (j == WordsLimit) {
+                if (isPunctuation(c)) {
+                    book += sentence + c;
+                    sentence = '';
+                    j = 0;
+                } else {
+                    book += sentence + '\uF888';
+                    sentence = c;
+                    j = 1;
+                }
             } else {
-                ++ i;
+                sentence += c;
+                ++ j;
             }
-            book += sentence;
         }
-        if (i < line.length) {
-            book += line.slice(i) + '\uF888'.repeat(i + WordsLimit + 1 - line.length);
+        if (sentence.length > 0) {
+            book += sentence + '\uF888'.repeat(WordsLimit - j + 1);
         }
     }
     return book;
