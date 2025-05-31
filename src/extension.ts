@@ -339,9 +339,6 @@ function WorkSet() {
 // 搜索结果类型定义
 interface SearchResult {
     pageNumber: number;    // 页码
-    pageContent: string;   // 页面内容
-    startIndex: number;    // 匹配开始位置
-    endIndex: number;      // 匹配结束位置
     beforeContext?: string; // 匹配前的上下文
     afterContext?: string;  // 匹配后的上下文
 }
@@ -352,8 +349,12 @@ function WorkSearch(): void {
         prompt: '请输入要搜索的内容',
         placeHolder: '搜索关键词',
         validateInput: (text: string) => {
-            if (!text || text.trim().length === 0) {
+            if (!text || text.length === 0) {
                 return '搜索内容不能为空';
+            }
+            const wordsLimit = configr.GetWordsLimit();
+            if (text.length > wordsLimit) {
+                return '搜索内容超出句长限制 ( WordsLimit : ' + wordsLimit + ' )';
             }
             return null;
         }
@@ -389,20 +390,45 @@ function WorkSearch(): void {
                     return;
                 }
                 
-                const pageNumber = Math.floor(match.index / (wordsLimit + 1));
-                const pageContent = content.slice(pageNumber * (wordsLimit + 1), (pageNumber + 1) * (wordsLimit + 1));
-
-                const startIndex = match.index % (wordsLimit + 1);
-                const endIndex = startIndex + match[0].length - 1;
+                const beforeContent = content.slice(0, match.index);
+                const afterContent = content.slice(match.index + match[0].length);
+                const Index = mtb.StrLength(beforeContent);
                 
-                const beforeContext = pageContent.slice(0, startIndex);
-                const afterContext = pageContent.slice(endIndex + 1);
+                const pageNumber = Math.floor(Index / (wordsLimit + 1));
+                
+                let beforeContext = "";
+                let afterContext = "";
+                
+                let j = 0;
+                for (const c of [...beforeContent].reverse()) {
+                    if (c === '\uF888') {
+                        continue;
+                    } else {
+                        beforeContext = c + beforeContext;
+                        ++ j;
+                        if (j == 10) {
+                            beforeContext = '…' + beforeContext;
+                            break;
+                        }
+                    }
+                }
+                
+                j = 0;
+                for (const c of afterContent) {
+                    if (c === '\uF888') {
+                        continue;
+                    } else {
+                        afterContext += c;
+                        ++ j;
+                        if (j == 10) {
+                            afterContext += '…';
+                            break;
+                        }
+                    }
+                }
                 
                 results.push({
                     pageNumber: pageNumber + 1,
-                    pageContent: pageContent,
-                    startIndex: startIndex,
-                    endIndex: endIndex,
                     beforeContext: beforeContext,
                     afterContext: afterContext
                 });
@@ -425,7 +451,6 @@ function showSearchResults(searchText: string, results: SearchResult[]): void {
         // 构建上下文显示
         let context = '';
         if (result.beforeContext) {
-            context += result.beforeContext.length === 20 ? '...' : '';
             context += result.beforeContext;
         }
         
@@ -433,7 +458,6 @@ function showSearchResults(searchText: string, results: SearchResult[]): void {
         
         if (result.afterContext) {
             context += result.afterContext;
-            context += result.afterContext.length === 20 ? '...' : '';
         }
         
         return {
