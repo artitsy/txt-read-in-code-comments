@@ -4,12 +4,7 @@ import * as chardet from 'chardet';
 
 // 获取实际字符数，如字符‘💩’‘👁’在string中占了两位。
 export function StrLength(text: string): number {
-    const spRegexp = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g;
-    let val = 0;
-    if (text) {
-        val = text.replace(spRegexp, '_').length;
-    }
-    return val;
+    return Array.from(text).length;
 }
 
 // 检查一个字符是否为标点符号

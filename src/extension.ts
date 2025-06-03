@@ -334,7 +334,7 @@ function WorkSet() {
             }
         }
     });
-} 
+}
 
 // 搜索结果类型定义
 interface SearchResult {
@@ -370,12 +370,9 @@ function WorkSearch(): void {
             const content = mtb.decode(buffer);
             const wordsLimit = configr.GetWordsLimit();
             
-            const Pattern = searchText
-                .slice(0, -1)
-                .split('')
-                .map(ch => `${ch}(\\uF888*)`);
-            Pattern.push(searchText.slice(-1));
-            const pattern = Pattern.join('');
+            const pattern = Array.from(searchText)
+                .map(ch => `${ch.replace(/[.*+?^${}()|[\]]/g, '\\$&')}(?:\\uF888*)`)
+                .join('');
             
             var searchpatt = new RegExp(pattern, 'g');
             
