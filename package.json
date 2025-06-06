@@ -52,7 +52,11 @@
             {
                 "command": "txt-read-in-code-comments.settings",
                 "title": "read.settings"
-            }
+            },
+			{
+				"command": "txt-read-in-code-comments.search",
+				"title": "read.search"
+			}
 		],
 		"keybindings": [
 			{
@@ -78,6 +82,10 @@
 			{
 				"command": "txt-read-in-code-comments.turn",
 				"key": "Alt+t"
+			},
+			{
+				"command": "txt-read-in-code-comments.search",
+				"key": "Alt+f"
 			}
 		]
 	},

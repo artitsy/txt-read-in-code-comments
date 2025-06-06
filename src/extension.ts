@@ -9,8 +9,8 @@ let sourceFile: string;     // 源文件   路径
 let readingFile: number;    // 缓存文件 句柄
 let statusBarItem: vscode.StatusBarItem; // 状态栏项
 //let position: number;       // 读到位置     这玩意限定用 configr 转递
-//let text: string;           // 在读文本        已启用，老板键仅用于隐藏
-//let hide: boolean;          // 老板键 隐藏状态  已启用，老板键仅用于隐藏
+//let text: string;           // 在读文本        已弃用，老板键仅用于隐藏
+//let hide: boolean;          // 老板键 隐藏状态  已弃用，老板键仅用于隐藏
 
 let configr: Configr;       // 配置管理
 
@@ -18,7 +18,7 @@ function Build(buffer: Buffer, encoding: string, wordsLimit: number) {
     let book: string = mtb.decode(buffer, encoding);
     book = mtb.formatText(book, wordsLimit);
     fse.writeFileSync(cacheFile, mtb.encode(book));
-    configr.SetTotalLine(book.length / (wordsLimit + 1));
+    configr.SetTotalLine(mtb.StrLength(book) / (wordsLimit + 1));
     readingFile = fse.openSync(cacheFile, 'r');
 }
 
@@ -334,7 +334,163 @@ function WorkSet() {
             }
         }
     });
-} 
+}
+
+// 搜索结果类型定义
+interface SearchResult {
+    pageNumber: number;    // 页码
+    beforeContext?: string; // 匹配前的上下文
+    afterContext?: string;  // 匹配后的上下文
+}
+
+// 全文搜索函数
+function WorkSearch(): void {
+    vscode.window.showInputBox({
+        prompt: '请输入要搜索的内容',
+        placeHolder: '搜索关键词',
+        validateInput: (text: string) => {
+            if (!text || text.length === 0) {
+                return '搜索内容不能为空';
+            }
+            const wordsLimit = configr.GetWordsLimit();
+            if (text.length > wordsLimit) {
+                return '搜索内容超出句长限制 ( WordsLimit : ' + wordsLimit + ' )';
+            }
+            return null;
+        }
+    }).then((searchText) => {
+        if (searchText) {
+            // 执行搜索
+            
+            const results: SearchResult[] = [];
+            
+            // 读取源文件
+            const buffer = fse.readFileSync(cacheFile);
+            
+            const content = mtb.decode(buffer);
+            const wordsLimit = configr.GetWordsLimit();
+            
+            const pattern = Array.from(searchText)
+                .map(ch => `${ch.replace(/[.*+?^${}()|[\]]/g, '\\$&')}(?:\\uF888*)`)
+                .join('');
+            
+            var searchpatt = new RegExp(pattern, 'g');
+            
+            
+            let matchCount = 0;
+            let match: RegExpExecArray | null;
+            while ((match = searchpatt.exec(content)) !== null) {
+                // 多余 24 项匹配，就不显示了
+                ++ matchCount;
+                if (matchCount > 24) {
+                    vscode.window.showWarningMessage(`匹配项多于 24 个，请使用更详细的检索词。`).then();
+                    return;
+                }
+                
+                const beforeContent = content.slice(0, match.index);
+                const afterContent = content.slice(match.index + match[0].length);
+                const Index = mtb.StrLength(beforeContent);
+                
+                const pageNumber = Math.floor(Index / (wordsLimit + 1));
+                
+                let beforeContext = "";
+                let afterContext = "";
+                
+                let j = 0;
+                for (const c of [...beforeContent].reverse()) {
+                    if (c === '\uF888') {
+                        continue;
+                    } else {
+                        beforeContext = c + beforeContext;
+                        ++ j;
+                        if (j == 10) {
+                            beforeContext = '…' + beforeContext;
+                            break;
+                        }
+                    }
+                }
+                
+                j = 0;
+                for (const c of afterContent) {
+                    if (c === '\uF888') {
+                        continue;
+                    } else {
+                        afterContext += c;
+                        ++ j;
+                        if (j == 10) {
+                            afterContext += '…';
+                            break;
+                        }
+                    }
+                }
+                
+                results.push({
+                    pageNumber: pageNumber + 1,
+                    beforeContext: beforeContext,
+                    afterContext: afterContext
+                });
+            }
+            
+            showSearchResults(searchText, results);
+        }
+    });
+}
+
+// 显示搜索结果
+function showSearchResults(searchText: string, results: SearchResult[]): void {
+    if (results.length === 0) {
+        vscode.window.showInformationMessage(`未找到匹配内容: "${searchText}"`).then();
+        return;
+    }
+    
+    // 创建 QuickPick 项
+    const items: vscode.QuickPickItem[] = results.map((result, index) => {
+        // 构建上下文显示
+        let context = '';
+        if (result.beforeContext) {
+            context += result.beforeContext;
+        }
+        
+        context += searchText; // 添加搜索文本
+        
+        if (result.afterContext) {
+            context += result.afterContext;
+        }
+        
+        return {
+            label: `第 ${result.pageNumber} 页`,
+            description: context,
+            detail: `匹配 ${index + 1}/${results.length}`
+        };
+    });
+    
+    // 显示 QuickPick
+    const quickPick = vscode.window.createQuickPick();
+    quickPick.items = items;
+    quickPick.placeholder = `找到 ${results.length} 个匹配项，选择一个跳转`;
+    quickPick.onDidChangeSelection(selection => {
+        if (selection[0]) {
+            const selectedIndex = items.indexOf(selection[0]);
+            if (selectedIndex !== -1) {
+                const selectedResult = results[selectedIndex];
+                jumpToPage(selectedResult.pageNumber);
+                quickPick.hide();
+            }
+        }
+    });
+    quickPick.onDidHide(() => quickPick.dispose());
+    quickPick.show();
+}
+
+// 跳转到指定页
+function jumpToPage(pageNumber: number): void {
+    // 直接设置位置并显示
+    configr.SetPosition(pageNumber);
+    Write();
+    
+    vscode.window.showInformationMessage(`已跳转到第 ${pageNumber} 页`).then();
+}
+
 
 //*//   配置更新
 function CheckConfigVersion() {
@@ -420,6 +576,7 @@ function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.hide', WorkHide));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', WorkTurn));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.settings', WorkSet));
+    context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.search', WorkSearch));
     
 }
 //*//
