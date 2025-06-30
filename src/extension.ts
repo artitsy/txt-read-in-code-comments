@@ -37,10 +37,6 @@ function WorkInit(): void {
             const frmfile: string = uri[0].fsPath;
             const buffer: Buffer = fse.readFileSync(frmfile);
             
-            if (mtb.isBinaryFile(buffer)) {
-                vscode.window.showErrorMessage('二进制文件不支持！').then();
-                return;
-            }
             fse.copyFile(frmfile, sourceFile);
             Build(buffer, mtb.detect(buffer), configr.GetWordsLimit());
             configr.SetPosition(0);

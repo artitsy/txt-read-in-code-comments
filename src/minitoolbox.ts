@@ -49,17 +49,6 @@ export function formatText(OriginalText: string, WordsLimit: number): string {
     return book;
 } 
 
-// 测试是否为二进制文件  todo: UTF-16
-export function isBinaryFile(buffer: Buffer): boolean {
-    const bytesToCheck = Math.min(buffer.length, 1024);
-    for (let i = 0; i < bytesToCheck; ++i) {
-        if (buffer[i] === 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
 // 判断编码
 export function detect(buffer: Buffer): string {
     const encoding = chardet.detect(buffer.subarray(0, 131072)) || 'utf-8';
