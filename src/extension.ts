@@ -12,7 +12,6 @@ let statusBarItem: vscode.StatusBarItem; // 状态栏项
 //let text: string;           // 在读文本        已弃用，老板键仅用于隐藏
 //let hide: boolean;          // 老板键 隐藏状态  已弃用，老板键仅用于隐藏
 let autoHideTimer: NodeJS.Timeout | null = null; // 自动隐藏计时器
-let isHidden: boolean = false; // 跟踪当前是否处于隐藏状态
 
 let configr: Configr;       // 配置管理
 
@@ -30,11 +29,6 @@ function resetAutoHideTimer(): void {
     if (autoHideTimer !== null) {
         clearTimeout(autoHideTimer);
         autoHideTimer = null;
-    }
-    
-    // 如果内容已隐藏，不设置计时器
-    if (isHidden) {
-        return;
     }
     
     const timeout = configr.GetAutoHideTimeout();
@@ -99,8 +93,6 @@ function Read(): string {
 
 // 向工作区写入
 function Write(text: string | undefined = undefined): void {
-    isHidden = false; // 设置隐藏状态为false
-
     switch (configr.GetDisplayPlace()) {
         case 0: {
             const editor: vscode.TextEditor = mtb.GetEditor();
@@ -148,21 +140,19 @@ function Write(text: string | undefined = undefined): void {
             break;
         }
     }
-    
+    resetAutoHideTimer();
 }
 
 // 显示下一句
 function WorkNext(): void {
     configr.SetPosition(configr.GetPosition() + 1);
     Write();
-    resetAutoHideTimer();
 }
 
 //显示上一句
 function WorkLast(): void {
     configr.SetPosition(configr.GetPosition() - 1);
     Write();
-    resetAutoHideTimer();
 }
 
 function WorkTurn(): void {
@@ -195,8 +185,6 @@ function WorkTurn(): void {
 }
 
 function WorkHide(): void {
-    isHidden = true; // 设置隐藏状态为true
-
     switch (configr.GetDisplayPlace()) {
         case 0: {
             const editor: vscode.TextEditor = mtb.GetEditor();
@@ -237,7 +225,6 @@ function WorkSet() {
         "Sign",
         "DisplayPlace",
         "AutoHide",
-        "SaveReplaceText",
     ]).then(value => {
         if (value) {
             switch (value) {
@@ -330,8 +317,6 @@ function WorkSet() {
                             }
                         });
                     });
-                    
-                    
                     break;
                 case "DisplayPlace":
                     let DPName: string [] = ["行内注释", "状态栏", "行间注释"];
@@ -361,7 +346,7 @@ function WorkSet() {
                 case "AutoHide":
                     const currentTimeout = configr.GetAutoHideTimeout();
                     vscode.window.showInputBox({
-                        prompt: `请输入自动老板键的超时时间（秒），当前为 ${currentTimeout} 秒，设置为0表示禁用`,
+                        prompt: `请输入自动隐藏的超时时间（秒），当前为 ${currentTimeout} 秒，设置为0表示禁用`,
                         value: currentTimeout.toString(),
                         validateInput: (input: string) => {
                             const num = Number(input);
@@ -380,21 +365,10 @@ function WorkSet() {
                             resetAutoHideTimer(); // 立即应用新设置
                             
                             if (newTimeout === 0) {
-                                vscode.window.showInformationMessage('自动老板键已禁用').then();
+                                vscode.window.showInformationMessage('自动隐藏已禁用').then();
                             } else {
-                                vscode.window.showInformationMessage(`自动老板键时间已设置为 ${newTimeout} 秒`).then();
+                                vscode.window.showInformationMessage(`自动隐藏时间已设置为 ${newTimeout} 秒`).then();
                             }
-                        }
-                    });
-                    break;
-                case "SaveReplaceText":
-                    vscode.window.showInputBox({
-                        prompt: `当前保存时替换文本为: "${configr.GetSaveReplaceText()}"，请输入新的替换文本`,
-                        value: configr.GetSaveReplaceText(),
-                    }).then((text) => {
-                        if (text !== undefined) {
-                            configr.SetSaveReplaceText(text);
-                            vscode.window.showInformationMessage(`保存时替换文本已设置为: "${text}"`).then();
                         }
                     });
                     break;
@@ -558,57 +532,6 @@ function jumpToPage(pageNumber: number): void {
     vscode.window.showInformationMessage(`已跳转到第 ${pageNumber} 页`).then();
 }
 
-// 在文件保存前替换阅读文本
-// 避免保存到不该保存的字符串 ^_^
-function onWillSaveTextDocument(event: vscode.TextDocumentWillSaveEvent): void {
-
-    const document = event.document;
-    const editor = vscode.window.activeTextEditor;
-    
-    // 检查活动编辑器
-    if (!editor || editor.document !== document) {
-        return;
-    }
-    
-    const sign = configr.GetSign(document.languageId);
-    const replaceText = configr.GetSaveReplaceText();
-    
-    // 检查文件中是否包含标志符
-    const text = document.getText();
-    if (text.indexOf(sign) === -1) {
-        return;
-    }
-    
-    // 创建编辑操作
-    const edit = new vscode.WorkspaceEdit();
-    
-    // 遍历所有行，查找并替换阅读文本
-    for (let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
-        const line = document.lineAt(lineNumber);
-        const indexPosition = line.text.indexOf(sign);
-        
-        if (indexPosition !== -1) {
-            const startPos = new vscode.Position(lineNumber, indexPosition + sign.length);
-            const endPos = new vscode.Position(lineNumber, line.text.length);
-            const range = new vscode.Range(startPos, endPos);
-            
-            // 替换为指定文本
-            edit.replace(document.uri, range, replaceText);
-        }
-    }
-    
-    // 应用编辑
-    event.waitUntil(
-        vscode.workspace.applyEdit(edit)
-            .then(() => {
-                isHidden = true;            // 在保存操作后将内容标记为"隐藏"状态，禁用自动隐藏功能
-                resetAutoHideTimer();       // 清除现有计时器
-                
-                return Promise.resolve();
-            })
-    );
-}
-
 //*//   配置更新
 function CheckConfigVersion() {
     const ConfigVersionTag: number = configr.GetConfigVersionTag() | 0;
@@ -685,19 +608,6 @@ function activate(context: vscode.ExtensionContext): void {
     
     readingFile = fse.openSync(cacheFile, 'r');
     
-    // 初始化自动老板键
-    resetAutoHideTimer();
-
-    // 这个需要吗，有操作看起来更真实点？
-    // 监听编辑器事件以重置计时器
-    context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(() => {
-        resetAutoHideTimer();
-    }));
-    
-    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => {
-        resetAutoHideTimer();
-    }));
-    
     // 注册命令
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.init', WorkInit));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.next', WorkNext));
@@ -706,7 +616,6 @@ function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', WorkTurn));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.settings', WorkSet));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.search', WorkSearch));
-    context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(onWillSaveTextDocument));
     
 }
 //*//
