@@ -55,14 +55,12 @@ function Read(): string {
         if (position < 0) {
             configr.SetPosition(0);
         }
-        vscode.window.showInformationMessage(`到头了呢。总 ${configr.GetTotalLine()} 页。`).then();
         return "-- BEGIN --";
     }
     if (position > configr.GetTotalLine()) {
         if (position > configr.GetTotalLine() + 1) {
             configr.SetPosition(configr.GetTotalLine() + 1);
         }
-        vscode.window.showInformationMessage(`读完了呢。总 ${configr.GetTotalLine()} 页。`).then();
         return "-- END --";
     }
     //const stats: fse.Stats = fse.statSync(cacheFile);
@@ -76,7 +74,7 @@ function Read(): string {
 }
 
 // 向工作区写入
-function Write(text: string | undefined = undefined): void {
+function Write(): void {
     switch (configr.GetDisplayPlace()) {
         case 0: {
             const editor: vscode.TextEditor = mtb.GetEditor();
@@ -87,14 +85,12 @@ function Write(text: string | undefined = undefined): void {
                     const begin = new vscode.Position(editor.selection.active.line, 0);
                     editBuilder.insert(begin, sign + "\n");
                 }).then(() => {
-                    Write(text);
+                    Write();
                 });
                 return;
             }
             
-            if (text === undefined) {
-                text = Read();
-            }
+            const text = Read();
             
             for (let lineNumber = 0; lineNumber < editor.document.lineCount; ++ lineNumber) {
                 
@@ -115,9 +111,7 @@ function Write(text: string | undefined = undefined): void {
             break;
         }
         case 1: {
-            if (text === undefined) {
-                text = Read();
-            }
+            const text = Read();
             
             statusBarItem.text = text;
             statusBarItem.show();
@@ -162,8 +156,6 @@ function WorkTurn(): void {
         if (turnPage) {
             configr.SetPosition(Number(turnPage) - 1);
             WorkNext();
-        } else {
-            vscode.window.showInformationMessage('取消跳转').then();
         }
     });
 }
@@ -552,8 +544,6 @@ function jumpToPage(pageNumber: number): void {
     // 直接设置位置并显示
     configr.SetPosition(pageNumber);
     Write();
-    
-    vscode.window.showInformationMessage(`已跳转到第 ${pageNumber} 页`).then();
 }
 
 // 重置自动隐藏计时器
