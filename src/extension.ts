@@ -446,11 +446,10 @@ function WorkSearch(): void {
             let matchCount = 0;
             let match: RegExpExecArray | null;
             while ((match = searchpatt.exec(content)) !== null) {
-                // 多余 24 项匹配，就不显示了
+                // 多余 128 项匹配，就不显示了
                 ++ matchCount;
-                if (matchCount > 24) {
-                    vscode.window.showWarningMessage(`匹配项多于 24 个，请使用更详细的检索词。`).then();
-                    return;
+                if (matchCount > 128) {
+                    break;
                 }
                 
                 const beforeContent = content.slice(0, match.index);
@@ -533,7 +532,7 @@ function showSearchResults(searchText: string, results: SearchResult[]): void {
     // 显示 QuickPick
     const quickPick = vscode.window.createQuickPick();
     quickPick.items = items;
-    quickPick.placeholder = `找到 ${results.length} 个匹配项，选择一个跳转`;
+    quickPick.placeholder = results.length < 128 ? `找到 ${results.length} 个匹配项，选择一个跳转` : `匹配项过多，仅显示前 128 个。请使用更详细的检索词。`;
     quickPick.onDidChangeSelection(selection => {
         if (selection[0]) {
             const selectedIndex = items.indexOf(selection[0]);
