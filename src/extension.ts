@@ -23,22 +23,6 @@ function Build(buffer: Buffer, encoding: string, wordsLimit: number) {
     readingFile = fse.openSync(cacheFile, 'r');
 }
 
-// 重置自动隐藏计时器
-function resetAutoHideTimer(): void {
-    // 清除现有计时器
-    if (autoHideTimer !== null) {
-        clearTimeout(autoHideTimer);
-        autoHideTimer = null;
-    }
-    
-    const timeout = configr.GetAutoHideTimeout();
-    if (timeout > 0) { // 如果超时时间大于0，则启用计时器
-        autoHideTimer = setTimeout(() => {
-            WorkHide(); // 指定时间后自动隐藏
-        }, timeout * 1000); // 转换为毫秒
-    }
-}
-
 function WorkInit(): void {
     vscode.window.showOpenDialog({
         canSelectFiles: true,
@@ -292,7 +276,7 @@ function WorkSet() {
                                     //iconClasses: ['file-icon', `${lang}-lang-file-icon`]
                                 };
                             });
-                        quickpick.show();
+                        quickpick.onDidHide(() => quickpick.dispose());
                         quickpick.onDidChangeSelection(selection => {
                             if (selection.length > 0) {
                                 const selected = selection[0];
@@ -316,6 +300,7 @@ function WorkSet() {
                                 });
                             }
                         });
+                        quickpick.show();
                     });
                     break;
                 case "DisplayPlace":
@@ -344,33 +329,73 @@ function WorkSet() {
                     });
                     break;
                 case "AutoHide":
+                    const quickpick = vscode.window.createQuickPick();
                     const currentTimeout = configr.GetAutoHideTimeout();
-                    vscode.window.showInputBox({
-                        prompt: `请输入自动隐藏的超时时间（秒），当前为 ${currentTimeout} 秒，设置为0表示禁用`,
-                        value: currentTimeout.toString(),
-                        validateInput: (input: string) => {
-                            const num = Number(input);
-                            if (isNaN(num)) {
-                                return '请输入有效的数字';
-                            }
-                            if (num < 0 || num !== Math.floor(num)) {
-                                return '请输入非负整数';
-                            }
-                            return null;
+                    let quickpickitem = [
+                        {
+                            label: '计时自动隐藏',
+                            description: currentTimeout ? `${currentTimeout} 秒` : `已禁用`
+                        },
+                        {
+                            label: '保存时自动隐藏',
+                            description: configr.GetAutoHideOnWillSave() ? '已启用' : '已禁用'
+                        },
+                        {
+                            label: '切换窗口自动隐藏',
+                            description: configr.GetAutoHideOnWindowChange() ? '已启用' : '已禁用'
                         }
-                    }).then(input => {
-                        if (input !== undefined) {
-                            const newTimeout = Number(input);
-                            configr.SetAutoHideTimeout(newTimeout);
-                            resetAutoHideTimer(); // 立即应用新设置
-                            
-                            if (newTimeout === 0) {
-                                vscode.window.showInformationMessage('自动隐藏已禁用').then();
-                            } else {
-                                vscode.window.showInformationMessage(`自动隐藏时间已设置为 ${newTimeout} 秒`).then();
-                            }
+                    ];
+                    quickpick.items = quickpickitem;
+                    quickpick.placeholder = '选择一项修改设置';
+                    quickpick.onDidHide(() => quickpick.dispose());
+                    quickpick.onDidChangeSelection(selection => {
+                        if (selection.length > 0) {
+                            const selected = selection[0];
+                            switch (selected.label) {
+                                case '计时自动隐藏':
+                                    vscode.window.showInputBox({
+                                        prompt: `设置计时自动隐藏的时间（秒），当前为 ${currentTimeout} 秒，设置为0表示禁用`,
+                                        value: currentTimeout.toString(),
+                                        validateInput: (input: string) => {
+                                            const num = Number(input);
+                                            if (isNaN(num)) {
+                                                return '请输入有效的数字';
+                                            }
+                                            if (num < 0 || num !== Math.floor(num)) {
+                                                return '请输入非负整数';
+                                            }
+                                            return null;
+                                        }
+                                    }).then(input => {
+                                        if (input !== undefined) {
+                                            const newTimeout = Number(input);
+                                            configr.SetAutoHideTimeout(newTimeout);
+                                            resetAutoHideTimer(); // 立即应用新设置
+                                            
+                                            if (newTimeout === 0) {
+                                                vscode.window.showInformationMessage('自动隐藏已禁用').then();
+                                            } else {
+                                                vscode.window.showInformationMessage(`自动隐藏时间已设置为 ${newTimeout} 秒`).then();
+                                            }
+                                        }
+                                    });
+                                    break;
+                                case '保存时自动隐藏':
+                                    const nowWillSave = !configr.GetAutoHideOnWillSave();
+                                    configr.SetAutoHideOnWillSave(nowWillSave);
+                                    quickpickitem[1].description = nowWillSave ? '已启用' : '已禁用';
+                                    quickpick.items = quickpickitem;
+                                    break;
+                                case '切换窗口自动隐藏':
+                                    const nowWindowChange = !configr.GetAutoHideOnWindowChange();
+                                    configr.SetAutoHideOnWindowChange(nowWindowChange);
+                                    quickpickitem[2].description = nowWindowChange ? '已启用' : '已禁用';
+                                    quickpick.items = quickpickitem;
+                                    break;
+                                }
                         }
                     });
+                    quickpick.show();
                     break;
             }
         }
@@ -532,6 +557,22 @@ function jumpToPage(pageNumber: number): void {
     vscode.window.showInformationMessage(`已跳转到第 ${pageNumber} 页`).then();
 }
 
+// 重置自动隐藏计时器
+function resetAutoHideTimer(): void {
+    // 清除现有计时器
+    if (autoHideTimer !== null) {
+        clearTimeout(autoHideTimer);
+        autoHideTimer = null;
+    }
+    
+    const timeout = configr.GetAutoHideTimeout();
+    if (timeout > 0) {
+        autoHideTimer = setTimeout(() => {
+            WorkHide();
+        }, timeout * 1000);
+    }
+}
+
 //*//   配置更新
 function CheckConfigVersion() {
     const ConfigVersionTag: number = configr.GetConfigVersionTag() | 0;
@@ -616,7 +657,16 @@ function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.turn', WorkTurn));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.settings', WorkSet));
     context.subscriptions.push(vscode.commands.registerCommand('txt-read-in-code-comments.search', WorkSearch));
-    
+    context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(() => {
+        if (configr.GetAutoHideOnWillSave()) {
+            WorkHide();
+        }
+    }));
+    context.subscriptions.push(vscode.window.onDidChangeWindowState(() => {
+        if (configr.GetAutoHideOnWindowChange()) {
+            WorkHide();
+        }
+    }));
 }
 //*//
 

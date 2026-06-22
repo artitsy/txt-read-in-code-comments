@@ -41,6 +41,14 @@ class Configr {
         return this.context.globalState.get("AutoHideTimeout", 10);
     }
     
+    GetAutoHideOnWillSave(): boolean {
+        return this.context.globalState.get("AutoHideOnWillSave", false);
+    }
+    
+    GetAutoHideOnWindowChange(): boolean {
+        return this.context.globalState.get("AutoHideOnWindowChange", false);
+    }
+    
     SetWordsLimit(limit: number): void {
         this.context.globalState.update("WordsLimit", limit).then();
     }
@@ -67,6 +75,14 @@ class Configr {
     
     SetAutoHideTimeout(seconds: number): void {
         this.context.globalState.update("AutoHideTimeout", seconds).then();
+    }
+    
+    SetAutoHideOnWillSave(enabled: boolean): void {
+        this.context.globalState.update("AutoHideOnWillSave", enabled).then();
+    }
+
+    SetAutoHideOnWindowChange(enabled: boolean): void {
+        this.context.globalState.update("AutoHideOnWindowChange", enabled).then();
     }
 };
 //*//   
